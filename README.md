@@ -89,17 +89,24 @@ SciLoom 把一篇论文从"下载"到"写成综述"的全过程织成一条可�
 > 详细步骤见 `docs/`；以下为最短路径。
 
 ```bash
+# 0. 准备测试数据（可选，约 25 MB）
+python scripts/fetch_data.py
+
 # 1. 后端
 cd apps/api
-python -m venv .venv && .venv\Scripts\activate    # Windows
-pip install -e .
+python -m venv .venv
+.venv\Scripts\activate          # Windows；macOS/Linux 用 source .venv/bin/activate
+pip install -e ".[rag,graph,viz]"
 uvicorn app.main:app --reload --port 8000
 
 # 2. 前端
 cd apps/web
 npm install
-npm run dev        # http://localhost:3000
+npm run dev                     # http://localhost:3000
 ```
+
+未配置 `LLM_API_KEY` 时问答自动回落为**抽取式模式**（从原文句子中挑答案并标注出处），
+链路可完整演示；配置后切换为模型生成，并保留同样的引用校验。
 
 ## 环境变量
 

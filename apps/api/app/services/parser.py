@@ -40,7 +40,7 @@ REF_START_RE = re.compile(r"^\s*\[(\d{1,3})\]\s*")
 NUM_HEADING_RE = re.compile(r"^(\d{1,2}(?:\.\d{1,2}){0,2})\.?\s*([A-Z][A-Za-z].{0,90})$")
 MATH_FONT_HINTS = ("CMMI", "CMSY", "CMEX", "MSBM", "Symbol", "MTMI", "MTSY", "EUEX", "MTEX")
 CAPTION_RE = re.compile(r"^(figure|table|fig\.|algorithm)\s*\d+", re.I)
-ARXIV_STAMP_RE = re.compile(r"^arXiv:\d{4}\.\d{4,5}v?\d*\s*\[", re.I)
+ARXIV_STAMP_RE = re.compile(r"^arxiv:\s*\d{4}\.\d{4,5}", re.I)
 
 NAMED_SECTIONS = {
     "abstract",
@@ -80,6 +80,7 @@ class _Line:
     bold: bool
     fonts: set[str] = field(default_factory=set)
     column: int = 0
+    ocr: bool = False
 
     @property
     def y0(self) -> float:
@@ -105,6 +106,7 @@ class _RawBlock:
     column: int = 0
     kind: str = "paragraph"
     level: int = 0
+    ocr: bool = False
 
 
 class PdfParser:
@@ -207,24 +209,18 @@ class PdfParser:
             page_texts.append(page_text)
 
             lines = self._page_lines(page, width, height)
-            if lines and self._page_is_two_column(lines):
-                self._assign_columns(lines, width)
+            if not lines and self.ocr_engine != "none":
+                ocr_lines = self._ocr_page_lines(page)
+                if ocr_lines:
+                    scanned.append(pno)
+                    lines = ocr_lines
+                    page_texts[-1] = _clean(" ".join(ln.text for ln in ocr_lines))
             if not lines:
                 if page.get_images(full=False) or len(page_text) < 40:
                     scanned.append(pno)
-                    ocr_text = self._ocr_page(page)
-                    if ocr_text:
-                        page_texts[-1] = ocr_text
-                        blocks.append(
-                            _RawBlock(
-                                page=pno,
-                                bbox=(0, 0, width, height),
-                                text=_clean(ocr_text),
-                                size=10.0,
-                                bold=False,
-                            )
-                        )
                 continue
+            if self._page_is_two_column(lines):
+                self._assign_columns(lines, width)
 
             blocks.extend(self._lines_to_blocks(lines, width))
 
@@ -348,6 +344,7 @@ class PdfParser:
                     bold=all(ln.bold for ln in buf),
                     fonts=fonts,
                     column=max(0, buf[0].column),
+                    ocr=buf[0].ocr,
                 )
             )
             buf.clear()
@@ -374,10 +371,26 @@ class PdfParser:
         flush()
         return blocks
 
-    def _ocr_page(self, page: pymupdf.Page) -> str:
-        """扫描件 OCR 入口；接入 PaddleOCR 后替换此方法即可。"""
-        logger.warning("第 %d 页无文本层，OCR 尚未启用", page.number + 1)
-        return ""
+    def _ocr_page_lines(self, page: pymupdf.Page) -> list[_Line]:
+        """扫描页 OCR，返回与矢量页同构的行对象（含 PDF 坐标）。"""
+        from .ocr import ocr_page_lines
+
+        lines: list[_Line] = []
+        for bbox, text, _score in ocr_page_lines(page):
+            if page.number == 0 and ARXIV_STAMP_RE.match(text):
+                continue  # arXiv 侧边水印常被 OCR 识别成正文，会污染标题
+            height = max(1.0, bbox[3] - bbox[1])
+            lines.append(
+                _Line(
+                    page=page.number,
+                    bbox=bbox,
+                    text=_clean(text),
+                    size=max(5.0, height * 0.78),
+                    bold=False,
+                    ocr=True,
+                )
+            )
+        return lines
 
     # -------------------------------------------------------------- structure
     @staticmethod
@@ -416,11 +429,22 @@ class PdfParser:
                 continue
             lowered = re.sub(r"^[\d.]+\s*", "", text).lower().strip(" .:")
             is_named = lowered in NAMED_SECTIONS
-            size_bigger = b.size >= body * 1.12
-            bold_line = b.bold and b.size >= body * 0.98
-            if not (is_named or size_bigger or bold_line):
+            numbered = bool(NUM_HEADING_RE.match(text))
+            # OCR 没有字号与字重，只能依赖"编号 + 命名章节"两个强信号，
+            # 否则 OCR 行高抖动会把整页判成标题（实测 173 个假标题）。
+            if b.ocr:
+                if not (is_named or numbered):
+                    continue
+            else:
+                size_bigger = b.size >= body * 1.12
+                bold_line = b.bold and b.size >= body * 0.98
+                if not (is_named or size_bigger or bold_line):
+                    continue
+            # 编号开头的行在正文里也可能出现（"3 We used values of ..."这类脚注编号），
+            # 真正的标题是短语，不会长成一整句。
+            if numbered and (len(text) > 80 or len(text.split()) > 10):
                 continue
-            if not is_named and text.endswith((".", ",", ";")) and len(text) > 40:
+            if not is_named and not numbered and text.endswith((".", ",", ";")) and len(text) > 40:
                 continue
             b.kind = "heading"
             sizes.append(round(b.size, 1))
@@ -435,6 +459,9 @@ class PdfParser:
             numbered_level = (m.group(1).count(".") + 1) if m else None
             if numbered_level:
                 b.level = max(1, min(3, numbered_level))
+            elif b.ocr:
+                # OCR 字号不可靠，命名章节（Abstract/References/...）一律视为一级
+                b.level = 1
             else:
                 b.level = max(1, min(3, size_to_level.get(round(b.size, 1), 2)))
             if b.level == 1 and b.size >= body * 1.5:

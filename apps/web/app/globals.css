@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --paper: #edeae1;
+  --ink: #191813;
+  --blueprint: #1f4e63;
+  --signal: #a63c2a;
+  --graphite: #2a2b27;
+  --haze: #cfcabd;
+  --mist: #f7f5ef;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 起草图纸：极淡的 24px 网格，暗示"结构化解析"而非装饰 */
+.sheet-grid {
+  background-image:
+    linear-gradient(to right, rgba(31, 78, 99, 0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(31, 78, 99, 0.055) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* 引用轨：本产品的签名元素。页码与锚点固定占一条窄轨，
+   任何一段文字都能一眼看出"它出自哪一页"。 */
+.rail {
+  width: 62px;
+  flex: none;
+  text-align: right;
+  padding-right: 10px;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.9;
+  color: #8b8779;
+  user-select: none;
+}
+
+.rail-tick {
+  color: var(--signal);
+}
+
+.cite {
+  display: inline-block;
+  min-width: 22px;
+  margin: 0 1px;
+  padding: 0 3px;
+  border-radius: 2px;
+  background: rgba(166, 60, 42, 0.1);
+  color: var(--signal);
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.cite:hover {
+  background: var(--signal);
+  color: var(--mist);
+}
+
+.rule {
+  border-top: 1px solid var(--haze);
+}
+
+.tab {
+  padding: 8px 2px;
+  margin-right: 24px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: #6f6a5c;
+  border-bottom: 2px solid transparent;
+}
+
+.tab[data-active="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--blueprint);
+}
+
+:focus-visible {
+  outline: 2px solid var(--blueprint);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
