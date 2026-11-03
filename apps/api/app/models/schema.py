@@ -22,6 +22,7 @@ class Block(BaseModel):
     level: int = 0  # 标题层级，0 表示非标题
     font_size: float = 0.0
     column: int = 0  # 0=左栏/单栏 1=右栏
+    ocr: bool = False  # 该块来自扫描页 OCR，字号为估算值
 
 
 class Section(BaseModel):

@@ -41,6 +41,7 @@ NUM_HEADING_RE = re.compile(r"^(\d{1,2}(?:\.\d{1,2}){0,2})\.?\s*([A-Z][A-Za-z].{
 MATH_FONT_HINTS = ("CMMI", "CMSY", "CMEX", "MSBM", "Symbol", "MTMI", "MTSY", "EUEX", "MTEX")
 CAPTION_RE = re.compile(r"^(figure|table|fig\.|algorithm)\s*\d+", re.I)
 ARXIV_STAMP_RE = re.compile(r"^arxiv:\s*\d{4}\.\d{4,5}", re.I)
+DATE_ONLY_RE = re.compile(r"^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{4}$", re.I)
 
 NAMED_SECTIONS = {
     "abstract",
@@ -147,6 +148,7 @@ class PdfParser:
                     level=b.level,
                     font_size=round(b.size, 1),
                     column=b.column,
+                    ocr=b.ocr,
                 )
                 for i, b in enumerate(raw_blocks)
             ]
@@ -650,14 +652,23 @@ class PdfParser:
             return "", []
 
         body = statistics.median([b.font_size for b in first]) or 10.0
-        candidates = [
+        page_width = max((b.bbox[2] for b in first), default=0.0)
+        clean = [
             b
             for b in first
-            if b.kind == "title" or (b.font_size >= body * 1.35 and len(b.text) < 200)
+            if not ARXIV_STAMP_RE.match(b.text) and not DATE_ONLY_RE.match(b.text)
         ]
-        candidates = [b for b in candidates if not ARXIV_STAMP_RE.match(b.text)]
+        # OCR 页的字号来自行高估计，比矢量页更粗，阈值相应放宽
+        ratio = 1.18 if any(b.ocr for b in first) else 1.35
+        candidates = [
+            b
+            for b in clean
+            if (b.kind == "title" or (b.font_size >= body * ratio and len(b.text) < 200))
+            and len(b.text) >= 12
+            and (b.bbox[2] - b.bbox[0]) > page_width * 0.25
+        ]
         if not candidates:
-            candidates = [max(first, key=lambda b: b.font_size)]
+            candidates = [max(clean or first, key=lambda b: b.font_size)]
 
         title_block = max(candidates, key=lambda b: b.font_size)
         title = title_block.text[:300]
