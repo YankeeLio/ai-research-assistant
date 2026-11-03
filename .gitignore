@@ -1,0 +1,41 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.uv/
+
+# --- Node ---
+node_modules/
+.next/
+out/
+dist/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# --- 环境与密钥（严禁提交）---
+.env
+.env.local
+.env.*.local
+
+# --- 运行时数据 ---
+data/
+*.db
+*.sqlite3
+*.faiss
+*.chroma/
+logs/
+*.log
+
+# --- 测试数据集（体积大，按需获取）---
+pdf/*.pdf
+
+# --- 系统与编辑器 ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
