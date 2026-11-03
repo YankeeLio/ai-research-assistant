@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     embedding_api_key: str = ""
     embedding_base_url: str = ""
     embedding_dim: int = 1024
+    # 国内网络无法直连 huggingface.co，默认走镜像；海外部署可改为 https://huggingface.co
+    hf_endpoint: str = "https://hf-mirror.com"
+    # 模型已缓存时置 True，可跳过每次启动对 Hub 的连通性探测（国内常超时 3 分钟）
+    hf_offline: bool = False
     rerank_enabled: bool = True
 
     # 学术数据源

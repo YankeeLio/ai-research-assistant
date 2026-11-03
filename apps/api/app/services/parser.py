@@ -235,9 +235,11 @@ class PdfParser:
             if raw_block.get("type") != 0:
                 continue
             for line in raw_block.get("lines", []):
-                spans = [s for s in line.get("spans", []) if s.get("text", "").strip()]
+                spans = line.get("spans", [])
                 if not spans:
                     continue
+                # LaTeX 生成的 PDF 常把空格单独放成一个 span；若按"非空 span"过滤再拼接，
+                # 整句会粘成 "Theencoderiscomposedof..."，检索与阅读都会失真。
                 text = _clean("".join(s.get("text", "") for s in spans))
                 if not text:
                     continue
@@ -247,8 +249,9 @@ class PdfParser:
                     continue
                 if x0 < width * 0.12 and ARXIV_STAMP_RE.match(text):
                     continue
-                sizes = [s.get("size", 0.0) for s in spans]
-                bold = sum(1 for s in spans if int(s.get("flags", 0)) & 16) >= len(spans) / 2
+                visible = [s for s in spans if s.get("text", "").strip()]
+                sizes = [s.get("size", 0.0) for s in visible]
+                bold = sum(1 for s in visible if int(s.get("flags", 0)) & 16) >= len(visible) / 2
                 lines.append(
                     _Line(
                         page=page.number,

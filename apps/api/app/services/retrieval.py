@@ -14,6 +14,7 @@ import logging
 import math
 import re
 from collections import Counter
+from functools import lru_cache
 from pathlib import Path
 from typing import Protocol
 
@@ -109,9 +110,16 @@ class SentenceTransformerEmbedder:
         return np.asarray(vecs, dtype=np.float32)
 
 
+@lru_cache(maxsize=1)
 def get_embedder() -> Embedder:
+    """进程内单例：BGE-M3 加载一次约 20 s，绝不能在每次检索时重建。"""
     settings = get_settings()
     if settings.embedding_backend == "local":
+        import os
+
+        os.environ.setdefault("HF_ENDPOINT", settings.hf_endpoint)
+        if settings.hf_offline:
+            os.environ.setdefault("HF_HUB_OFFLINE", "1")
         try:
             return SentenceTransformerEmbedder(settings.embedding_model)
         except Exception as exc:  # noqa: BLE001 - 模型缺失时降级而不是崩溃
@@ -172,15 +180,13 @@ class DocumentIndex:
         if not self.chunks:
             return []
         sparse = self.bm25.scores(tokenize(query))
-        sparse_norm = _minmax(sparse)
 
         embedder = get_embedder()
         qvec = embedder.encode([query])[0]
         dense = self.vectors @ qvec
-        dense_norm = _minmax(dense)
 
-        fused = 0.55 * sparse_norm + 0.45 * dense_norm
-        order = np.argsort(-fused)[: max(top_k * 3, top_k)]
+        fused = 0.3 * _rrf(sparse) + 1.0 * _rrf(dense)
+        order = np.argsort(-fused)[:max(top_k * 3, top_k)]
         picked = [(self.chunks[i], float(fused[i])) for i in order]
         return picked[:top_k]
 
@@ -192,3 +198,17 @@ def _minmax(values: np.ndarray) -> np.ndarray:
     if hi - lo < 1e-9:
         return np.zeros_like(values)
     return (values - lo) / (hi - lo)
+
+
+def _rrf(sparse: np.ndarray, dense: np.ndarray, k: int = 60) -> np.ndarray:
+    """Reciprocal Rank Fusion。
+
+    两路分数的量纲不可比（BM25 无上界、余弦在 [-1,1]），直接加权需要调参且不稳定；
+    RRF 只使用排名，对分数分布不敏感，是混合检索的常用做法。
+    """
+    n = len(sparse)
+    fused = np.zeros(n, dtype=np.float32)
+    for values in (sparse, dense):
+        ranks = np.argsort(np.argsort(-values)) + 1  # 1 为最相关
+        fused += 1.0 / (k + ranks)
+    return fused
