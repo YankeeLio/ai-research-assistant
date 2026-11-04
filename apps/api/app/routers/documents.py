@@ -1,79 +1,122 @@
-"""文献管理：上传、列表、详情、解析结果读取、删除。"""
+"""文献管理：上传、列表、详情、解析结果、重复检测、版本差异、删除。"""
 
 from __future__ import annotations
 
-import hashlib
+import json
 import re
 import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 
 from ..core import db
 from ..core.config import get_settings
 from ..models.schema import DocumentSummary, ParsedDocument
+from ..services import dedupe, version_diff
 from ..services.parser import PdfParser
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
-def _summary_from_parsed(parsed: ParsedDocument, uploaded_at: str) -> DocumentSummary:
+def _doc_dir(doc_id: str) -> Path:
+    return get_settings().docs_dir / doc_id
+
+
+def _version_hint(file_name: str) -> str:
+    m = re.search(r"v(\d+)", file_name, re.I)
+    return f"v{m.group(1)}" if m else ""
+
+
+def _row_to_summary(r: dict) -> DocumentSummary:
     return DocumentSummary(
-        doc_id=parsed.doc_id,
-        file_name=parsed.file_name,
-        title=parsed.title or parsed.file_name,
-        authors=parsed.authors,
-        page_count=parsed.stats.page_count if parsed.stats else 0,
-        is_scanned=parsed.is_scanned,
-        layout=parsed.layout,
-        uploaded_at=uploaded_at,
-        status="ready",
+        doc_id=r["doc_id"],
+        file_name=r["file_name"],
+        title=r["title"] or r["file_name"],
+        authors=json.loads(r["authors"] or "[]"),
+        page_count=r["page_count"],
+        is_scanned=bool(r["is_scanned"]),
+        layout=r["layout"],
+        uploaded_at=r["uploaded_at"],
+        status=r["status"],
+        error=r["error"],
+        content_fingerprint=r["fingerprint"],
+        version_hint=r["version_hint"],
+        duplicate_of=r["duplicate_of"],
+        duplicate_similarity=r.get("dup_similarity") or 0.0,
+        duplicate_verdict=r.get("dup_verdict") or "",
+        duplicate_action=r.get("dup_action") or "",
+        duplicate_message=r.get("dup_message") or "",
     )
 
 
-def _fingerprint(parsed: ParsedDocument) -> str:
-    """正文指纹：取前 5 页正文（去空白、去数字）做 sha256。
-
-    真正的语义去重（SimHash + 向量）在 services/dedupe.py 中实现，
-    这里先提供稳定的粗筛键，保证重复上传能被立刻识别。
-    """
-    head = " ".join(parsed.page_texts[:5])
-    normalized = re.sub(r"[\s\d\W]+", "", head.lower())[:5000]
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:32]
+def _pool(exclude: str | None = None) -> list[dedupe.Fingerprint]:
+    """加载库内全部指纹；老文档没有指纹文件时按需补算。"""
+    out: list[dedupe.Fingerprint] = []
+    for row in db.list_documents():
+        doc_id = row["doc_id"]
+        if doc_id == exclude:
+            continue
+        fp = dedupe.load_fingerprint(_doc_dir(doc_id))
+        if fp is None:
+            payload = db.load_parsed(doc_id)
+            if payload is None:
+                continue
+            parsed = ParsedDocument.model_validate(payload)
+            fp = dedupe.build_fingerprint(parsed)
+            dedupe.save_fingerprint(fp, _doc_dir(doc_id))
+        out.append(fp)
+    return out
 
 
 def _parse_and_store(doc_id: str, pdf_path: Path, file_name: str) -> DocumentSummary:
     settings = get_settings()
     uploaded_at = datetime.now(timezone.utc).isoformat()
+    version = _version_hint(file_name)
+
     try:
         parser = PdfParser(ocr_engine=settings.ocr_engine, max_pages_inline=settings.max_pages_inline)
         parsed = parser.parse(pdf_path, doc_id)
-        parsed.file_name = file_name  # 落盘文件名是 original.pdf，对外保持用户原始文件名
+        parsed.file_name = file_name  # 落盘名是 original.pdf，对外保持原始文件名
         db.save_parsed(doc_id, parsed.model_dump())
-        summary = _summary_from_parsed(parsed, uploaded_at)
-        fp = _fingerprint(parsed)
+
+        fp = dedupe.build_fingerprint(parsed)
+        dedupe.save_fingerprint(fp, _doc_dir(doc_id))
+
+        match = dedupe.find_best_match(fp, _pool(exclude=doc_id))
+        rec = {"action": "", "message": ""}
+        if match is not None:
+            existing = db.get_document(match.doc_id)
+            existing_version = (existing or {}).get("version_hint", "")
+            rec = dedupe.recommend(version, existing_version, match)
+
         db.upsert_document(
             {
                 "doc_id": doc_id,
                 "file_name": file_name,
-                "title": summary.title,
-                "authors": __import__("json").dumps(summary.authors, ensure_ascii=False),
-                "page_count": summary.page_count,
-                "is_scanned": int(summary.is_scanned),
-                "layout": summary.layout,
+                "title": parsed.title or file_name,
+                "authors": json.dumps(parsed.authors, ensure_ascii=False),
+                "page_count": parsed.stats.page_count if parsed.stats else 0,
+                "is_scanned": int(parsed.is_scanned),
+                "layout": parsed.layout,
                 "status": "ready",
                 "error": "",
-                "fingerprint": fp,
-                "version_hint": _version_hint(file_name),
+                "fingerprint": fp.simhash,
+                "simhash": fp.simhash,
+                "version_hint": version,
+                "duplicate_of": match.doc_id if match else None,
+                "dup_similarity": match.similarity if match else 0.0,
+                "dup_verdict": match.verdict if match else "",
+                "dup_action": rec["action"],
+                "dup_message": rec["message"],
                 "uploaded_at": uploaded_at,
             }
         )
-        summary.content_fingerprint = fp
-        summary.version_hint = _version_hint(file_name)
-        return summary
+
+        row = db.get_document(doc_id)
+        return _row_to_summary(row or {})
     except Exception as exc:  # noqa: BLE001 - 解析失败要落库，前端才能提示
         db.upsert_document(
             {
@@ -87,16 +130,16 @@ def _parse_and_store(doc_id: str, pdf_path: Path, file_name: str) -> DocumentSum
                 "status": "failed",
                 "error": str(exc)[:500],
                 "fingerprint": "",
-                "version_hint": _version_hint(file_name),
+                "simhash": "",
+                "version_hint": version,
+                "dup_similarity": 0.0,
+                "dup_verdict": "",
+                "dup_action": "",
+                "dup_message": "",
                 "uploaded_at": uploaded_at,
             }
         )
         raise HTTPException(status_code=422, detail=f"解析失败: {exc}") from exc
-
-
-def _version_hint(file_name: str) -> str:
-    m = re.search(r"v(\d+)", file_name, re.I)
-    return f"v{m.group(1)}" if m else ""
 
 
 @router.post("/upload", response_model=DocumentSummary)
@@ -115,54 +158,22 @@ async def upload_document(file: UploadFile = File(...)) -> DocumentSummary:
     pdf_path = target_dir / "original.pdf"
     pdf_path.write_bytes(raw)
 
-    return await run_in_threadpool(_parse_and_store, doc_id, pdf_path, file.filename or "untitled.pdf")
+    return await run_in_threadpool(
+        _parse_and_store, doc_id, pdf_path, file.filename or "untitled.pdf"
+    )
 
 
 @router.get("", response_model=list[DocumentSummary])
 def list_documents() -> list[DocumentSummary]:
-    rows = db.list_documents()
-    out: list[DocumentSummary] = []
-    for r in rows:
-        out.append(
-            DocumentSummary(
-                doc_id=r["doc_id"],
-                file_name=r["file_name"],
-                title=r["title"] or r["file_name"],
-                authors=__import__("json").loads(r["authors"] or "[]"),
-                page_count=r["page_count"],
-                is_scanned=bool(r["is_scanned"]),
-                layout=r["layout"],
-                uploaded_at=r["uploaded_at"],
-                status=r["status"],
-                error=r["error"],
-                content_fingerprint=r["fingerprint"],
-                version_hint=r["version_hint"],
-                duplicate_of=r["duplicate_of"],
-            )
-        )
-    return out
+    return [_row_to_summary(r) for r in db.list_documents()]
 
 
 @router.get("/{doc_id}", response_model=DocumentSummary)
 def get_document(doc_id: str) -> DocumentSummary:
-    r = db.get_document(doc_id)
-    if not r:
+    row = db.get_document(doc_id)
+    if not row:
         raise HTTPException(status_code=404, detail="文档不存在")
-    return DocumentSummary(
-        doc_id=r["doc_id"],
-        file_name=r["file_name"],
-        title=r["title"] or r["file_name"],
-        authors=__import__("json").loads(r["authors"] or "[]"),
-        page_count=r["page_count"],
-        is_scanned=bool(r["is_scanned"]),
-        layout=r["layout"],
-        uploaded_at=r["uploaded_at"],
-        status=r["status"],
-        error=r["error"],
-        content_fingerprint=r["fingerprint"],
-        version_hint=r["version_hint"],
-        duplicate_of=r["duplicate_of"],
-    )
+    return _row_to_summary(row)
 
 
 @router.get("/{doc_id}/parsed", response_model=ParsedDocument)
@@ -173,12 +184,84 @@ def get_parsed(doc_id: str) -> ParsedDocument:
     return ParsedDocument.model_validate(payload)
 
 
+@router.get("/{doc_id}/duplicates")
+def find_duplicates(doc_id: str) -> dict:
+    fp = dedupe.load_fingerprint(_doc_dir(doc_id))
+    if fp is None:
+        raise HTTPException(status_code=404, detail="指纹不存在（文档可能尚未解析完成）")
+    matches = [dedupe.compare(fp, other) for other in _pool(exclude=doc_id)]
+    matches = [m for m in matches if m.verdict != "different"]
+    matches.sort(key=lambda m: -m.similarity)
+    return {
+        "doc_id": doc_id,
+        "count": len(matches),
+        "matches": [
+            {"doc_id": m.doc_id, "similarity": m.similarity, "verdict": m.verdict, "reasons": m.reasons}
+            for m in matches
+        ],
+    }
+
+
+@router.get("/{doc_id}/diff/{other_id}")
+def compare_versions(doc_id: str, other_id: str) -> dict:
+    """对比两篇文档：`doc_id` 视为旧版，`other_id` 视为新版。"""
+    old_payload, new_payload = db.load_parsed(doc_id), db.load_parsed(other_id)
+    if old_payload is None or new_payload is None:
+        raise HTTPException(status_code=404, detail="解析结果不存在")
+    old = ParsedDocument.model_validate(old_payload)
+    new = ParsedDocument.model_validate(new_payload)
+    diff = version_diff.diff_parsed(old, new)
+    return {
+        "old": {"doc_id": diff.old_id, "label": diff.old_label},
+        "new": {"doc_id": diff.new_id, "label": diff.new_label},
+        "similarity": diff.similarity,
+        "summary": diff.summary,
+        "stats": diff.stats,
+        "sections": [
+            {
+                "title": s.title,
+                "status": s.status,
+                "similarity": s.similarity,
+                "added_sentences": s.added_sentences,
+                "removed_sentences": s.removed_sentences,
+            }
+            for s in diff.sections
+        ],
+    }
+
+
+@router.post("/{doc_id}/resolve")
+def resolve_duplicate(
+    doc_id: str, action: str = Query(..., pattern="^(keep_both|replace|keep_existing)$")
+) -> dict:
+    """处理重复：replace 表示保留本次上传、删除被判定为旧版的文档。"""
+    row = db.get_document(doc_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="文档不存在")
+
+    other = row["duplicate_of"]
+    if action == "replace" and other:
+        with db._connect() as conn:  # noqa: SLF001
+            conn.execute("DELETE FROM documents WHERE doc_id = ?", (other,))
+        shutil.rmtree(_doc_dir(other), ignore_errors=True)
+        db.update_document(doc_id, duplicate_of=None, dup_action="replaced", dup_message="已用本次上传替换旧版本")
+        return {"status": "replaced", "removed": other}
+
+    if action == "keep_existing" and other:
+        with db._connect() as conn:  # noqa: SLF001
+            conn.execute("DELETE FROM documents WHERE doc_id = ?", (doc_id,))
+        shutil.rmtree(_doc_dir(doc_id), ignore_errors=True)
+        return {"status": "kept_existing", "removed": doc_id}
+
+    db.update_document(doc_id, dup_action="keep_both", dup_message="已保留两个版本")
+    return {"status": "kept_both"}
+
+
 @router.delete("/{doc_id}")
 def delete_document(doc_id: str) -> dict[str, str]:
-    settings = get_settings()
     if not db.get_document(doc_id):
         raise HTTPException(status_code=404, detail="文档不存在")
     with db._connect() as conn:  # noqa: SLF001 - 单条删除，无需额外封装
         conn.execute("DELETE FROM documents WHERE doc_id = ?", (doc_id,))
-    shutil.rmtree(settings.docs_dir / doc_id, ignore_errors=True)
+    shutil.rmtree(_doc_dir(doc_id), ignore_errors=True)
     return {"status": "deleted", "doc_id": doc_id}

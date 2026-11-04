@@ -113,3 +113,7 @@ class DocumentSummary(BaseModel):
     content_fingerprint: str = ""
     version_hint: str = ""
     duplicate_of: str | None = None
+    duplicate_similarity: float = 0.0
+    duplicate_verdict: str = ""
+    duplicate_action: str = ""
+    duplicate_message: str = ""

@@ -27,12 +27,25 @@ CREATE TABLE IF NOT EXISTS documents (
 );
 """
 
+# 轻量迁移：老库缺列时补上，避免演示环境因 schema 变化而启动失败
+_MIGRATIONS = [
+    ("simhash", "TEXT DEFAULT ''"),
+    ("dup_similarity", "REAL DEFAULT 0"),
+    ("dup_verdict", "TEXT DEFAULT ''"),
+    ("dup_action", "TEXT DEFAULT ''"),
+    ("dup_message", "TEXT DEFAULT ''"),
+]
+
 
 def _connect() -> sqlite3.Connection:
     db = get_settings().data_dir / "sciloom.db"
     conn = sqlite3.connect(db, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute(_SCHEMA)
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(documents)")}
+    for column, ddl in _MIGRATIONS:
+        if column not in existing:
+            conn.execute(f"ALTER TABLE documents ADD COLUMN {column} {ddl}")
     return conn
 
 
