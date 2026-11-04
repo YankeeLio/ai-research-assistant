@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>SciLoom 技术文档</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+  :root{
+    --ink:#191813; --blueprint:#1F4E63; --signal:#A63C2A; --haze:#CFCABD; --mist:#F7F5EF;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    font-family:"Songti SC","SimSun","Source Han Serif SC",serif;
+    font-size:10.5pt; line-height:1.78; color:var(--ink); margin:0;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+  h1,h2,h3,h4,.sans{ font-family:"Microsoft YaHei","PingFang SC",sans-serif; }
+  h1{ font-size:19pt; margin:0 0 6pt; letter-spacing:-0.2pt; }
+  h2{ font-size:13.5pt; margin:16pt 0 7pt; padding-bottom:3pt; border-bottom:1.2pt solid var(--blueprint); color:var(--blueprint); }
+  h3{ font-size:11.5pt; margin:11pt 0 4pt; }
+  h4{ font-size:10.5pt; margin:8pt 0 3pt; color:#3a3a33; }
+  p{ margin:0 0 6pt; text-align:justify; }
+  ul,ol{ margin:0 0 7pt; padding-left:16pt; }
+  li{ margin:2pt 0; }
+  code,.mono{ font-family:Consolas,"Courier New",monospace; font-size:9pt; }
+  pre{
+    font-family:Consolas,monospace; font-size:8.6pt; line-height:1.55;
+    background:var(--mist); border-left:2.5pt solid var(--blueprint);
+    padding:7pt 9pt; margin:6pt 0 8pt; white-space:pre-wrap; word-break:break-all;
+  }
+  table{ width:100%; border-collapse:collapse; margin:6pt 0 9pt; font-size:9.3pt; }
+  th{ background:#EDEAE1; text-align:left; font-family:"Microsoft YaHei",sans-serif; font-weight:600; }
+  th,td{ border:0.6pt solid var(--haze); padding:3.5pt 5pt; vertical-align:top; }
+  .cap{ font-size:8.8pt; color:#6f6a5c; text-align:center; margin:3pt 0 10pt; }
+  figure{ margin:8pt 0 4pt; text-align:center; page-break-inside:avoid; }
+  figure img{ width:88%; max-width:100%; border:0.6pt solid var(--haze); }
+  .cover{ height:250mm; display:flex; flex-direction:column; justify-content:center; page-break-after:always; }
+  .cover .eyebrow{ font-family:Consolas,monospace; font-size:9pt; letter-spacing:2pt; color:var(--blueprint); text-transform:uppercase; }
+  .cover h1{ font-size:30pt; margin:10pt 0 4pt; }
+  .cover .sub{ font-size:13pt; color:#4a4a42; margin-bottom:22pt; }
+  .cover .meta{ font-size:9.5pt; line-height:2.1; }
+  .cover .rule{ width:52mm; height:2.4pt; background:var(--signal); margin:14pt 0 18pt; }
+  .toc{ page-break-after:always; }
+  .toc ol{ list-style:none; padding-left:0; font-size:10pt; }
+  .toc li{ display:flex; justify-content:space-between; border-bottom:0.5pt dotted var(--haze); padding:3.2pt 0; }
+  .toc li span:first-child{ font-family:"Microsoft YaHei",sans-serif; }
+  .newpage{ page-break-before:always; }
+  .note{ background:#FBF7EE; border:0.6pt solid #E4D9C2; padding:6pt 8pt; font-size:9.3pt; margin:7pt 0; }
+  .kpi{ display:flex; gap:6pt; margin:8pt 0; }
+  .kpi div{ flex:1; border:0.7pt solid var(--haze); padding:6pt; text-align:center; background:var(--mist); }
+  .kpi b{ display:block; font-family:"Microsoft YaHei",sans-serif; font-size:15pt; color:var(--blueprint); }
+  .kpi span{ font-size:8.6pt; color:#6f6a5c; }
+  .tag{ display:inline-block; font-family:Consolas,monospace; font-size:8pt; background:#EFEBE0; padding:0.5pt 3pt; border-radius:2pt; }
+  .avoid{ page-break-inside:avoid; }
+</style>
+</head>
+<body>
+
+<!-- ============ 封面 ============ -->
+<section class="cover">
+  <div class="eyebrow">全国高校 AI 大模型挑战赛 · 省赛作品</div>
+  <h1>SciLoom 智研织机</h1>
+  <div class="sub">基于大模型与 Agent 架构的全流程科研助手</div>
+  <div class="rule"></div>
+  <div class="meta sans">
+    <div>赛项：智领科研 · 意图驱动——全流程科研助手构建挑战赛</div>
+    <div>组别：B 组（普通本科院校本科生组）</div>
+    <div>参赛者：（填写姓名）</div>
+    <div>指导教师：（如有请填写）</div>
+    <div>提交日期：2026 年 11 月</div>
+  </div>
+</section>
+
+<!-- ============ 目录 ============ -->
+<section class="toc">
+  <h2 style="margin-top:0">目录</h2>
+  <ol>
+    <li><span>1　项目概述</span><span>1</span></li>
+    <li><span>2　需求分析</span><span>2</span></li>
+    <li><span>3　系统架构设计</span><span>4</span></li>
+    <li><span>4　AI 技术方案</span><span>7</span></li>
+    <li><span>5　核心功能实现</span><span>14</span></li>
+    <li><span>6　测试与评测</span><span>20</span></li>
+    <li><span>7　创新点说明</span><span>24</span></li>
+    <li><span>8　部署与工程实践</span><span>26</span></li>
+    <li><span>9　局限与展望</span><span>28</span></li>
+    <li><span>附录 A　接口清单</span><span>29</span></li>
+    <li><span>附录 B　目录结构与环境变量</span><span>30</span></li>
+  </ol>
+</section>
+
+<!-- ============ 1 项目概述 ============ -->
+<h2>1　项目概述</h2>
+
+<h3>1.1 我们要解决的问题</h3>
+<p>科研工作者每天面对的不是"没有信息"，而是"信息太多且不可信"。arXiv 单日更新数百篇，一篇论文动辄几十页，跨语言阅读又要额外付出成本；更麻烦的是，通用聊天机器人在学术场景里会流畅地编造超参数、硬件型号和参考文献——而科研恰恰是幻觉零容忍的领域。</p>
+<p>SciLoom 的定位不是"给 PDF 加一个对话框"，而是把一篇论文从<strong>下载</strong>到<strong>写成综述</strong>的全过程织成一条可追溯的链路：<em>解析 → 检索 → 问答溯源 → 对照阅读 → 图谱洞察 → 写作成图</em>。产品的一条硬性原则贯穿始终：<strong>每一句结论都必须能回到原文的页码与段落；每一个"研究空白"都必须先被证明没有被后续论文填上。</strong></p>
+
+<h3>1.2 交付形态</h3>
+<table>
+  <tr><th style="width:26%">层</th><th>技术选型</th><th style="width:30%">职责</th></tr>
+  <tr><td>前端</td><td>Next.js 14（App Router）+ TypeScript + Tailwind</td><td>文献台、PDF 阅读器、对照翻译、图谱、写作 Copilot</td></tr>
+  <tr><td>后端</td><td>FastAPI + Python 3.11</td><td>解析、检索、OCR、翻译、图谱、写作</td></tr>
+  <tr><td>模型</td><td>DeepSeek-V3（对话）+ BGE-M3（向量）+ opus-mt（离线翻译）+ RapidOCR</td><td>生成、召回、跨语言、扫描件识别</td></tr>
+  <tr><td>存储</td><td>SQLite（元数据）+ 本地 JSON（解析结果）+ npz（向量）</td><td>零运维，单机可复现</td></tr>
+</table>
+
+<h3>1.3 关键指标</h3>
+<div class="kpi">
+  <div><b>541</b><span>页教材解析耗时 29.3 s</span></div>
+  <div><b>6/6</b><span>检索评测命中 @3</span></div>
+  <div><b>0.905</b><span>v1/v7 版本相似度判定</span></div>
+  <div><b>15</b><span>类 REST 接口</span></div>
+</div>
+
+<h3>1.4 六大模块实现状态</h3>
+<table>
+  <tr><th>模块</th><th>核心能力</th><th style="width:12%">状态</th></tr>
+  <tr><td>① 文献管理与解析</td><td>批量上传、语义去重、标题树、表格、公式、参考文献、扫描件 OCR</td><td>已完成</td></tr>
+  <tr><td>② 抗幻觉问答</td><td>混合检索、证据约束、引用白名单校验、拒答</td><td>已完成</td></tr>
+  <tr><td>③ 阅读与翻译</td><td>PDF 渲染、锚点叠加、双向跳转、中英对照同步滚动</td><td>已完成</td></tr>
+  <tr><td>④ 检索与推荐</td><td>arXiv 检索、相关性重排、代码可复现性加权、一键入库</td><td>已完成</td></tr>
+  <tr><td>⑤ 图谱与综述</td><td>引用网络、PageRank 角色、结构化综述、Future Work 抽取</td><td>已完成</td></tr>
+  <tr><td>⑥ 写作与可视化</td><td>无幻觉框架、CSV 学术图表与图注、TikZ/Mermaid 脚本</td><td>已完成</td></tr>
+</table>
+
+<!-- ============ 2 需求分析 ============ -->
+<h2>2　需求分析</h2>
+
+<h3>2.1 用户与场景</h3>
+<p>目标用户是<strong>正在做文献综述的研究生与高年级本科生</strong>。他们一周内要读完 20–50 篇论文，产出开题报告或综述初稿。真实痛点集中在三处：筛选（哪些值得读）、精读（细节在哪一页）、写作（引用不能编）。</p>
+
+<h3>2.2 从赛题到验收标准</h3>
+<table>
+  <tr><th style="width:22%">赛题要求</th><th style="width:38%">我们的实现</th><th>可验证的验收标准</th></tr>
+  <tr><td>内容语义去重</td><td>段落级 8-gram shingle Jaccard + SimHash + 标题相似度</td><td>先传 v7 再传 v1，判定 <span class="mono">same_work</span>（0.905）并建议保留 v7</td></tr>
+  <tr><td>扫描件解析</td><td>RapidOCR 逐页识别，坐标按页面/位图比例反算回 PDF 空间</td><td>无文本层 PDF 解析出标题、7 个章节、36 条参考文献</td></tr>
+  <tr><td>长文档鲁棒性</td><td>分块入库、按需索引、表格识别前置筛选</td><td>541 页教材 29.3 s 解析、峰值内存 24.3 MB</td></tr>
+  <tr><td>抗幻觉溯源</td><td>证据约束提示词 + 引用编号白名单 + 无引用标记</td><td>证据不足时明确拒答；越界编号被剔除并告警</td></tr>
+  <tr><td>双向联动翻译</td><td>段落级对齐，按块索引同步滚动</td><td>拖动左栏 1400 px，右栏自动到同一段</td></tr>
+  <tr><td>图谱基石挖掘</td><td>NetworkX PageRank + 中介中心性，分位数划分角色</td><td>Adam / Attention / LayerNorm 被识别为基石，RoBERTa 识别为衍生</td></tr>
+  <tr><td>无幻觉写作</td><td>参考文献只从库内按语义相似度选取，越界引用剔除</td><td>生成的框架中每个 [n] 都对应库内真实文献</td></tr>
+</table>
+
+<h3>2.3 非功能需求</h3>
+<ul>
+  <li><strong>确定性</strong>：同一份 PDF 两次解析，标题树与参考文献数量应一致（指纹相同）。</li>
+  <li><strong>可复现</strong>：Docker Compose 一键起，模型走镜像站，数据与模型挂卷。</li>
+  <li><strong>优雅降级</strong>：没有大模型时问答回落抽取式、翻译回落本地 MT、写作回落模板，且都在界面上明确标注，绝不假装成功。</li>
+  <li><strong>响应性</strong>：长任务（解析、索引、翻译）不阻塞界面，进度可见。</li>
+</ul>
+
+<!-- ============ 3 系统架构 ============ -->
+<h2>3　系统架构设计</h2>
+
+<h3>3.1 分层视图</h3>
+<pre>┌──────────────────────────────────────────────────────────────┐
+│  Web (Next.js 14 · TypeScript)                               │
+│  文献台 │ PDF 阅读器 │ 对照翻译 │ 引用图谱 │ 检索发现 │ 写作     │
+└───────────────┬──────────────────────────────────────────────┘
+                │ REST + SSE
+┌───────────────▼──────────────────────────────────────────────┐
+│  API (FastAPI)                                               │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ 路由层  documents / qa / translation / graph / arxiv /  │  │
+│  │         writing                                        │  │
+│  └────────────────────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ 服务层  parser · ocr · chunking · retrieval · qa ·      │  │
+│  │         dedupe · version_diff · graph · survey ·        │  │
+│  │         translate · arxiv_client · recommend ·          │  │
+│  │         viz · writing · ingest · llm                    │  │
+│  └────────────────────────────────────────────────────────┘  │
+└───────────────┬──────────────────────────────────────────────┘
+                │
+     SQLite + JSON + npz 向量 + 本地文件（原始 PDF / 译文 / 指纹）</pre>
+<p class="cap">图 3-1　系统分层：路由薄、服务厚，所有能力以服务函数暴露，便于单独测试</p>
+
+<h3>3.2 一次提问的完整数据流</h3>
+<ol>
+  <li><strong>取索引</strong>：按 doc_id 读 <span class="mono">index/chunks.json + vectors.npz</span>；不存在则惰性构建。</li>
+  <li><strong>混合召回</strong>：BGE-M3 稠密检索取 top-50 短名单，BM25 仅在短名单内重排（见 4.3 的实测依据）。</li>
+  <li><strong>组织证据</strong>：把 top-8 片段包装成 <span class="mono">[c1]…[c8]</span>，附页码与章节路径。</li>
+  <li><strong>约束生成</strong>：系统提示词限定"只能用证据作答、逐句标注来源"。</li>
+  <li><strong>引用校验</strong>：正则提取 <span class="mono">[cN]</span>，剔除越界编号，无引用则标记 <span class="mono">ungrounded</span>。</li>
+  <li><strong>流式回传</strong>：SSE 先推证据、再推 token，前端渲染成可点击的引用芯片。</li>
+</ol>
+
+<h3>3.3 目录结构</h3>
+<pre>.
+├── apps/
+│   ├── api/            # FastAPI：app/{core,models,routers,services}
+│   └── web/            # Next.js：app/ components/ lib/
+├── pdf/                # 官方测试集（不入库）
+├── scripts/            # 取数、评测、探针、启停
+├── deploy/             # nginx 配置
+├── docs/               # 本文档、进度、部署手册
+├── docker-compose.yml
+└── .env.example</pre>
+
+<h3>3.4 关键架构决策</h3>
+<table>
+  <tr><th style="width:26%">决策</th><th>选择的理由</th><th style="width:24%">代价</th></tr>
+  <tr><td>嵌入式向量库（npz）而非 Milvus/Qdrant</td><td>单人赛、单机演示，运维成本必须为零</td><td>不支持并发写入、规模限于单机</td></tr>
+  <tr><td>SQLite + JSON 落盘</td><td>解析结果是嵌套结构，JSON 便于前端整块读取与调试</td><td>大文档解析结果体积较大（541 页约 20 MB）</td></tr>
+  <tr><td>解析与索引分离，索引惰性构建</td><td>上传接口不能被 100 秒的建索引拖住</td><td>首次提问要等索引就绪（已有状态帧提示）</td></tr>
+  <tr><td>模型全部可降级</td><td>评审环境不一定有 Key 或外网</td><td>降级链路需要额外维护</td></tr>
+</table>
+
+<!-- ============ 4 AI 技术方案 ============ -->
+<h2 class="newpage">4　AI 技术方案</h2>
+
+<h3>4.1 细粒度文档解析</h3>
+<h4>4.1.1 为什么以"行"为最小单元</h4>
+<p>PyMuPDF 返回的 block 在学术 PDF 上并不可靠：它会把手写模板里左右两栏的文字合并成一个横跨整页的 bbox（实测 <span class="mono">x[108, 504]</span>）。如果直接按 block 处理，双栏还原和引用锚点坐标会同时失真。</p>
+<p>因此解析器改为<strong>行级抽取 → 横向分带 → 栏内合并</strong>：先把每行的 bbox 取出来，按"是否跨越页宽中线"判定所在栏，再以"通栏行"为分隔把页面切成若干横带，带内先左栏后右栏，最后按行距合并成段落块。</p>
+
+<h4>4.1.2 双栏判定：用"跨中线比例"否决</h4>
+<p>一个反直觉的事实：<strong>《Attention Is All You Need》正文是单栏</strong>（NeurIPS 模板），只有参考文献页是双栏。如果按"块中心是否在页宽中线左右"聚类，单栏论文会被误判成双栏。我们的判据是：</p>
+<pre>two_column = (左侧窄行 ≥ 6) and (右侧窄行 ≥ 6) and (跨中线行 ≤ 25%)</pre>
+<p>单栏页面里绝大多数行都横跨中线，这一条直接否决，误判率显著下降。</p>
+
+<h4>4.1.3 一个影响全局的缺陷：空格被当成噪声</h4>
+<p>LaTeX 生成的 PDF 常把空格单独输出成一个 span。早期实现为了去掉空 span，写成"只保留有文本的 span 再拼接"，结果整句粘成：</p>
+<pre>TheencoderiscomposedofastackofN=6identicallayers</pre>
+<p>这个缺陷不抛异常、不报错，但会同时污染关键词检索、向量化与喂给模型的上下文。修正前后检索评测（6 个问题，命中 @3）：</p>
+<table>
+  <tr><th>策略</th><th>修正前</th><th>修正后</th></tr>
+  <tr><td>BM25</td><td>2/5</td><td>4/5</td></tr>
+  <tr><td>稠密（BGE-M3）</td><td>3/5</td><td>6/6</td></tr>
+</table>
+
+<h4>4.1.4 参考文献：必须同时支持两种排版</h4>
+<p>数字式 <span class="mono">[12] Author. Title.</span> 与作者-年份式（ACL/NAACL 常见，<strong>完全没有编号</strong>）：</p>
+<pre>Alan Akbik, Duncan Blythe, and Roland Vollgraf. 2018. Contextual string embeddings…</pre>
+<p>只认数字式会让 BERT/RoBERTa/T5 的参考文献数全为 0，引用图谱随之只剩几条边。补上作者-年份式判定（含四位年份 + 首字母大写 + 长度合理）后：</p>
+<table>
+  <tr><th>论文</th><th>修正前</th><th>修正后</th></tr>
+  <tr><td>BERT</td><td>0</td><td>53</td></tr>
+  <tr><td>RoBERTa</td><td>0</td><td>49</td></tr>
+  <tr><td>T5</td><td>0</td><td>128</td></tr>
+  <tr><td>库内互引边</td><td>4</td><td>16</td></tr>
+</table>
+
+<h4>4.1.5 引用锚点：从块级收敛到字符级</h4>
+<p>块级 bbox 会让阅读器把一大段都高亮。解析后我们对每条 <span class="mono">[n]</span> 调用 <span class="mono">page.search_for()</span> 在块内二次检索，得到字符级矩形；锚点数量超过 600 时自动跳过（避免长文档拖慢解析）。</p>
+
+<h4>4.1.6 扫描件 OCR</h4>
+<p>RapidOCR 逐页识别后，用 <span class="mono">页面尺寸 / 位图尺寸</span> 把像素坐标反算回 PDF 用户坐标——上层因此不需要区分"原生文档"与"扫出来的文档"。OCR 页没有字号与字重，标题判定改为只认"编号"或"命名章节"两个强信号，否则行高抖动会把整页判成标题（实测曾出现 173 个假标题，修正后 27 个）。</p>
+
+<h4>4.1.7 长文档性能</h4>
+<p>541 页教材最初要 159 秒，瓶颈是 <span class="mono">find_tables()</span> 在每页都执行，而教材里大量矢量插图被当成表格候选。改成"页面出现 <span class="mono">Table N</span> 字样才识别"后：</p>
+<table>
+  <tr><th>文档</th><th>页数</th><th>耗时</th><th>内存峰值</th></tr>
+  <tr><td>1706.03762v7</td><td>15</td><td>8.0 s</td><td>29.5 MB</td></tr>
+  <tr><td>1706.03762v1（扫描件 OCR）</td><td>15</td><td>约 115 s</td><td>—</td></tr>
+  <tr><td>Understanding Deep Learning</td><td>541</td><td><strong>29.3 s</strong></td><td><strong>24.3 MB</strong></td></tr>
+</table>
+
+<h3>4.2 分块策略</h3>
+<p>按 block 聚合，块内不切断公式与表格，每块继承<strong>章节路径</strong>（如 <span class="mono">5 Training / 5.2 Hardware and Schedule</span>）。这样既能按语义检索，也能回答"第 3.2 节讲了什么"这类结构性问题。15 页论文切出 106 块。</p>
+
+<h3>4.3 混合检索：为什么稀疏不能与稠密平行融合</h3>
+<p>教科书答案是"BM25 + 向量加权融合"。我们照做之后评测只有 4/6，换成纯稠密反而 6/6。原因是<strong>跨语言</strong>：用户用中文提问、论文是英文时，BM25 的分词几乎全部落空，它给出的排序是噪声，会把向量已经命中的正确段落挤出前列。</p>
+<p>最终方案是<strong>稠密召回 + 短名单内稀疏重排</strong>：向量取 top-50 作为候选，BM25 只在这 50 个里重排，权重按"查询词在语料中的覆盖率"自适应（覆盖率低于 30% 时权重归零）。既保住了型号、数值这类精确串，又不会让噪声污染召回。</p>
+<table>
+  <tr><th>策略</th><th>命中 @3</th><th>top-1</th></tr>
+  <tr><td>BM25 only</td><td>4/6</td><td>2/6</td></tr>
+  <tr><td>稠密 only（BGE-M3）</td><td>6/6</td><td>6/6</td></tr>
+  <tr><td>RRF 平行融合</td><td>4/6</td><td>3/6</td></tr>
+  <tr><td><strong>稠密召回 + 短名单重排</strong></td><td><strong>6/6</strong></td><td>5/6</td></tr>
+</table>
+<p class="cap">表 4-1　检索策略对比（6 个取自论文原文的问题，含 1 个中文提问）</p>
+
+<h3>4.4 抗幻觉：三道闸门</h3>
+<p><strong>闸门一 · 证据约束</strong>：系统提示词规定"只依据 &lt;证据&gt; 作答、逐句标注 [cN]、证据不足时明确说不知道、不得换算或四舍五入数值"。</p>
+<p><strong>闸门二 · 引用白名单</strong>：生成后提取所有 <span class="mono">[cN]</span>，凡不在本次证据集合内的编号一律剔除并写入 warnings。这条防线曾经<b>形同虚设</b>——校验正则写的是 <span class="mono">c[0-9a-zA-Z]{4,16}</span>，而证据编号是 <span class="mono">c1</span> 这种两位短号，永远匹配不上，于是既拦不住越界引用，又会把每轮回答误判成"未绑定证据"。</p>
+<p><strong>闸门三 · 无引用即标记</strong>：模型没给出任何引用时，回答被标记 <span class="mono">ungrounded</span>，前端显式提示，而不是把它当成可信答案。</p>
+<div class="note">实测：问 GPT-3 论文"训练用了多少块 GPU"，模型回答"证据中只提到 V100，没有给出数量，因此无法回答"，并附上来源页码——这正是我们要的行为：<b>知道什么、也知道自己不知道什么</b>。</div>
+
+<h3>4.5 语义去重与版本差异</h3>
+<p>判定不依赖文件名，也不只看哈希（v1/v7 改了几十处，哈希完全不同）。三个信号加权：</p>
+<ul>
+  <li><strong>段落级 8-gram shingle 的 Jaccard</strong>：对局部改写不敏感，对"同一篇的不同版本"高度敏感；</li>
+  <li><strong>SimHash</strong>（64 位）：标题一致时作为旁证，避免过度惩罚改写；</li>
+  <li><strong>标题相似度</strong>：区分"同一工作的不同版本"与"同主题的两篇论文"。</li>
+</ul>
+<p>结论分四级：<span class="mono">identical / same_work / related / different</span>，并据此给出"保留 / 替换 / 并存"的建议。版本差异则按一级章节对齐，输出新增、删除、修改的节与字符数变化。</p>
+
+<h3>4.6 翻译：三级降级与块级对齐</h3>
+<p>翻译后端按可用性自动选择：<strong>LLM（有 Key）→ 本地 opus-mt-en-zh（离线）→ 直通并标注未翻译</strong>。本地 MT 有明显系统性误译（"Transformer"→"变异器"、"attention"→"关注"），因此加了一层术语表后处理，129 段中修正 26 段；但这仍明显弱于大模型，文档中如实说明。</p>
+<p>只翻译真正的正文段落（跳过作者行、邮箱串），175 段噪声降到 129 段，耗时从 434 秒降到 168 秒。对照阅读<strong>按块索引同步</strong>而不是按滚动比例：两侧行高差异大，比例同步会越读越偏。</p>
+
+<h3>4.7 引用图谱：从网络图到可解释的角色</h3>
+<p>边方向是"引用者 → 被引者"，因此入度与 PageRank 才代表"基石程度"。角色划分用<strong>分位数</strong>而非绝对阈值（不同规模的库，入度 2 与入度 20 意义完全不同）：</p>
+<ul>
+  <li><strong>基石</strong>：入度处于前 20% 且 PageRank 大于 0；</li>
+  <li><strong>桥梁</strong>：中介中心性处于前 15% 且入度 ≥ 2；</li>
+  <li><strong>衍生</strong>：出度前 20% 而入度 ≤ 1。</li>
+</ul>
+<p>综述文本由图谱统计生成：基石是谁、被引几次、中介节点在哪、时间跨度、是否 DAG。不是让模型"编一段综述"，而是把结构翻译成人话。</p>
+
+<h3>4.8 写作辅助：无幻觉是硬约束</h3>
+<p>框架生成时，参考文献只能从库内按语义相似度选取，编号 1..N 与库内文档一一绑定；模型若引用 [7] 而只提供了 5 条，该编号会被剔除并告警。没有模型时返回结构化模板并把 <span class="mono">mode</span> 标为 <span class="mono">template</span>——宁可让评审看到"没编"，也不假装生成。</p>
+
+<h3>4.9 数据可视化</h3>
+<p>图表类型由数据形状决定，量级相差 20 倍以上时自动拆成多个子图（否则小量级序列会被压成一条贴地线——图没错，但它在骗人）。图注不是套话：峰值、极值位置、趋势斜率都从同一份数据算出，写进图注的数字与图上画的是同一份数据。</p>
+
+<!-- ============ 5 核心功能实现 ============ -->
+<h2 class="newpage">5　核心功能实现</h2>
+
+<h3>5.1 文献台与 PDF 阅读器</h3>
+<figure><img src="assets/reader-anchors.png" alt="阅读器" /></figure>
+<p class="cap">图 5-1　PDF 渲染与引用锚点叠加：红色方块即解析阶段产出的字符级 bbox</p>
+<p>阅读器用 PDF.js 把页面画到 Canvas，再把解析出的 bbox 乘以同一个 scale 叠成绝对定位的方块。因为解析与渲染共用 PDF 用户坐标系，锚点不需要二次 OCR 或猜测。参考文献列表点击 <span class="mono">[12]</span> 即跳到正文对应位置并高亮；章节树、正文段落、问答证据同样可跳转。</p>
+
+<h3>5.2 问答：流式 + 证据面板</h3>
+<figure><img src="assets/qa.png" alt="问答面板" /></figure>
+<p class="cap">图 5-2　流式回答、可点击引用芯片与证据列表；证据不足时明确拒答</p>
+
+<h3>5.3 中英对照与同步滚动</h3>
+<figure><img src="assets/bilingual.png" alt="对照翻译" /></figure>
+<p class="cap">图 5-3　左英文右中文，按块索引同步；点击任一侧跳回 PDF 坐标</p>
+
+<h3>5.4 局域引用图谱与自动综述</h3>
+<figure><img src="assets/graph.png" alt="引用图谱" /></figure>
+<p class="cap">图 5-4　33 节点 / 52 边；红色为基石论文，右侧为图谱统计生成的综述与待探索方向</p>
+
+<h3>5.5 检索发现</h3>
+<figure><img src="assets/search.png" alt="检索发现" /></figure>
+<p class="cap">图 5-5　按"库内相关性 + 开源代码 + 时效"重排，支持一键下钻入库</p>
+
+<h3>5.6 写作 Copilot</h3>
+<figure><img src="assets/writing.png" alt="写作" /></figure>
+<p class="cap">图 5-6　框架生成：右侧列出被引用的库内文献，编号与正文一一对应</p>
+<figure><img src="assets/chart_sample.png" alt="CSV 图表" /></figure>
+<p class="cap">图 5-7　CSV → 学术图表：BLEU 与参数量量级相差 20 倍，自动拆成上下两个子图</p>
+
+<!-- ============ 6 测试与评测 ============ -->
+<h2 class="newpage">6　测试与评测</h2>
+
+<h3>6.1 官方测试用例</h3>
+<table>
+  <tr><th style="width:22%">用例</th><th>做法</th><th style="width:30%">结果</th></tr>
+  <tr><td>版本去重（v7 → v1）</td><td>先入 v7，再上传 v1，比较正文指纹</td><td><span class="mono">same_work</span>，相似度 0.905，建议保留 v7</td></tr>
+  <tr><td>完全重复（v7 → v7）</td><td>同一文件二次上传</td><td><span class="mono">identical</span>，相似度 1.000</td></tr>
+  <tr><td>扫描件（v1_img）</td><td>15 页纯图片 PDF 走 OCR</td><td>识别出标题、7 个章节、36 条参考文献</td></tr>
+  <tr><td>长文档（541 页）</td><td>整本教材解析 + 索引</td><td>29.3 s，峰值 24.3 MB</td></tr>
+  <tr><td>CSV → 图表</td><td>5 行 4 列 BLEU 数据</td><td>分组柱状图 + 数字级图注</td></tr>
+  <tr><td>架构图脚本</td><td>6 段流水线</td><td>Mermaid / TikZ / Graphviz 三份可编译脚本</td></tr>
+</table>
+
+<h3>6.2 版本差异输出</h3>
+<pre>正文整体相似度 65.2%；新增 1 节；修改 8 节，改动最大的是
+7 Conclusion(+45/-35)、6 Results(+27/-25)、3 Model Architecture(+28/-23)；
+正文 +2644 字符；参考文献 36 → 40 条，表格 4 → 4 个。</pre>
+
+<h3>6.3 检索评测方法</h3>
+<p>6 个问题全部取自论文原文，答案特征串人工核对（如"8 NVIDIA P100""28.4""h=8""0.98""N=6"），命中定义是"特征串出现在 top-3 片段中"。脚本 <span class="mono">scripts/eval_retrieval.py</span> 可离线复现，不依赖运行中的服务。</p>
+
+<h3>6.4 解析一致性</h3>
+<p>同一份 PDF 两次解析，页数、标题数、参考文献数、锚点数完全一致；指纹（SimHash）相同。这保证了"输出成果可验证"的要求。</p>
+
+<h3>6.5 端到端冒烟</h3>
+<pre>health  : {"status": "ok"}
+upload  : {"title": "Attention Is All You Need", "authors": [8 人全部命中]}
+parsed  : page_count=15 block_count=259 heading_count=39
+          reference_count=40 cite_anchor_count=76
+sections: ['1 Introduction', '2 Background', … '7 Conclusion']</pre>
+
+<!-- ============ 7 创新点 ============ -->
+<h2 class="newpage">7　创新点说明</h2>
+
+<h3>7.1 技术创新点</h3>
+<table>
+  <tr><th style="width:30%">创新点</th><th>与常规做法的差异</th></tr>
+  <tr><td>行级重建 + 跨中线否决的双栏判定</td><td>常规做法按 block 聚类或按 x 坐标分栏，在"block 跨栏"与"单栏论文"两种情况下都会失效；我们用行的跨中线比例否决，实测能正确区分 NeurIPS 单栏正文与双栏参考文献页</td></tr>
+  <tr><td>稠密召回 + 短名单稀疏重排</td><td>常规混合检索把 BM25 与向量平行融合；我们通过评测证明这在跨语言场景下会显著劣化，改为"稀疏只在稠密候选内重排"</td></tr>
+  <tr><td>引用白名单校验</td><td>多数系统的"溯源"只到提示词层面；我们做了生成后的硬校验，越界编号直接剔除</td></tr>
+  <tr><td>分位数角色划分的图谱挖掘</td><td>用绝对入度阈值无法跨库迁移；分位数让"基石/桥梁/衍生"在 10 篇与 100 篇的库上都有意义</td></tr>
+  <tr><td>量级感知的自动图表拆分</td><td>常规做法是画在同一根轴上或让用户手动选；我们检测量级差并自动拆子图，同时在图注里说明原因</td></tr>
+</table>
+
+<h3>7.2 应用创新点</h3>
+<ul>
+  <li><strong>引用轨（citation rail）</strong>：正文每一段左侧常驻页码，问答的每条证据都带 <span class="mono">p.N · 章节路径</span>，把"可溯源"从一句承诺变成界面上的固定元素。</li>
+  <li><strong>块级对齐的中英对照</strong>：按段落索引同步而非滚动比例，解决"两侧行高不同导致越读越偏"的体验问题。</li>
+  <li><strong>降级可见</strong>：无 Key 时界面明确显示"抽取式模式 / 结构化模板 / 本地机翻"，用户始终知道自己在看什么质量的结果。</li>
+  <li><strong>一键下钻</strong>：检索结果直接触发"下载 → 解析 → 去重 → 入库 → 建索引"完整链路，与手动上传共用同一套服务。</li>
+</ul>
+
+<!-- ============ 8 部署 ============ -->
+<h2 class="newpage">8　部署与工程实践</h2>
+
+<h3>8.1 容器编排</h3>
+<p>三个容器：<span class="mono">api</span>（解析/检索/OCR/翻译/图谱）、<span class="mono">web</span>（Next standalone）、<span class="mono">nginx</span>（反向代理）。模型与数据挂卷，容器重建不丢；SSE 在 nginx 层关闭缓冲，否则 token 会攒到最后一次性吐出。</p>
+<pre>docker compose build      # 首次 15-25 分钟
+docker compose up -d
+python scripts/seed_demo.py http://&lt;公网IP&gt;   # 灌入 9 篇演示数据</pre>
+
+<h3>8.2 环境变量</h3>
+<table>
+  <tr><th style="width:32%">变量</th><th>说明</th></tr>
+  <tr><td><span class="mono">LLM_API_KEY</span></td><td>DeepSeek 密钥；为空时自动降级为抽取式</td></tr>
+  <tr><td><span class="mono">EMBEDDING_MODEL</span></td><td>默认 BAAI/bge-m3，本地加载</td></tr>
+  <tr><td><span class="mono">HF_ENDPOINT / HF_OFFLINE</span></td><td>国内走镜像；模型缓存后可置 offline 避免启动探测超时</td></tr>
+  <tr><td><span class="mono">CHUNK_SIZE / CHUNK_OVERLAP</span></td><td>分块粒度，默认 800 / 120</td></tr>
+  <tr><td><span class="mono">TRANSLATION_BACKEND</span></td><td>auto / llm / local</td></tr>
+</table>
+<div class="note">密钥只存在于 <span class="mono">.env</span>（已被 .gitignore 排除），仓库中只有 <span class="mono">.env.example</span> 模板。</div>
+
+<h3>8.3 工程实践</h3>
+<ul>
+  <li><strong>类型与规范</strong>：前端 <span class="mono">tsc --noEmit</span> 全量通过；后端统一 ruff 行宽 100。</li>
+  <li><strong>可观测</strong>：解析、检索、生成的关键路径都有日志；问答返回 warnings 数组，前端直接展示。</li>
+  <li><strong>可复现脚本</strong>：取数（fetch_data / fetch_related）、评测（eval_retrieval）、探针（parse_probe / qa_probe / writing_probe）、启停（start.ps1 / stop.ps1）。</li>
+  <li><strong>提交历史</strong>：按"一个能力一次提交"推进，消息说明动机与影响。</li>
+</ul>
+
+<!-- ============ 9 局限 ============ -->
+<h2>9　局限与展望</h2>
+<table>
+  <tr><th style="width:26%">局限</th><th>现状</th><th style="width:30%">下一步</th></tr>
+  <tr><td>OCR 速度</td><td>约 7 s/页（CPU），541 页扫描书需一小时</td><td>后台队列 + 断点续跑 + GPU 推理</td></tr>
+  <tr><td>索引构建</td><td>CPU 上 100 块约 12 s，长文档更久</td><td>批量编码 + 增量索引</td></tr>
+  <tr><td>表格结构</td><td>依赖正文出现 "Table N"，教材中 0 命中</td><td>补图形检测兜底、合并跨页表格</td></tr>
+  <tr><td>作者机构</td><td>扫描件上作者为空</td><td>OCR 后处理 + 版面聚类</td></tr>
+  <tr><td>公式</td><td>仅按字体启发式识别，未还原 LaTeX</td><td>接入公式识别模型</td></tr>
+  <tr><td>多用户</td><td>单用户单库</td><td>账号体系 + 库隔离 + 推荐算法个性化</td></tr>
+</table>
+<p>后续演进方向：把 Agent 的规划能力显式化（任务分解、工具选择、失败重试），把"一次问答"扩展为"多次检索—验证—修订"的闭环；同时接入更多数据源（PubMed、Semantic Scholar）与更多版式（Springer、Nature）。</p>
+
+<!-- ============ 附录 ============ -->
+<h2 class="newpage">附录 A　主要接口</h2>
+<table>
+  <tr><th style="width:38%">接口</th><th>用途</th></tr>
+  <tr><td><span class="mono">POST /api/documents/upload</span></td><td>上传 PDF，解析并返回去重判定</td></tr>
+  <tr><td><span class="mono">GET /api/documents/{id}/parsed</span></td><td>取结构化解析结果</td></tr>
+  <tr><td><span class="mono">GET /api/documents/{id}/file</span></td><td>原始 PDF 字节流</td></tr>
+  <tr><td><span class="mono">GET /api/documents/{id}/duplicates</span></td><td>重复列表</td></tr>
+  <tr><td><span class="mono">GET /api/documents/{a}/diff/{b}</span></td><td>版本差异</td></tr>
+  <tr><td><span class="mono">GET /api/qa/stream</span></td><td>SSE 流式问答（证据 + token）</td></tr>
+  <tr><td><span class="mono">POST /api/documents/{id}/translate</span></td><td>生成段落级译文</td></tr>
+  <tr><td><span class="mono">GET /api/graph</span> / <span class="mono">/api/graph/survey</span></td><td>引用图谱与自动综述</td></tr>
+  <tr><td><span class="mono">GET /api/arxiv/search</span></td><td>arXiv 检索 + 相关性重排</td></tr>
+  <tr><td><span class="mono">POST /api/arxiv/ingest</span></td><td>按 ID 下钻入库</td></tr>
+  <tr><td><span class="mono">POST /api/writing/outline</span></td><td>论文框架（库内引用）</td></tr>
+  <tr><td><span class="mono">POST /api/viz/chart</span></td><td>CSV → 图表 + 图注</td></tr>
+  <tr><td><span class="mono">POST /api/writing/diagram</span></td><td>TikZ / Mermaid / Graphviz 脚本</td></tr>
+</table>
+
+<h2>附录 B　目录与环境变量</h2>
+<pre>apps/api/app/
+├── core/       config.py  db.py
+├── models/     schema.py
+├── routers/    documents qa translation graph arxiv writing
+└── services/   parser ocr chunking retrieval qa dedupe version_diff
+                graph survey translate arxiv_client recommend viz
+                writing ingest llm
+
+.env（示例见 .env.example）
+LLM_BASE_URL=https://api.deepseek.com/v1
+LLM_API_KEY=sk-***
+LLM_MODEL=deepseek-chat
+EMBEDDING_MODEL=BAAI/bge-m3
+HF_ENDPOINT=https://hf-mirror.com
+CHUNK_SIZE=800  CHUNK_OVERLAP=120
+TRANSLATION_BACKEND=auto</pre>
+
+<div class="note" style="margin-top:14pt">
+本文档中的数据均可在仓库脚本中复现：解析指标见 <span class="mono">scripts/parse_probe.py</span>，检索评测见 <span class="mono">scripts/eval_retrieval.py</span>，去重与版本差异见 <span class="mono">scripts/dedupe_test.py</span>，图谱见 <span class="mono">scripts/graph_probe.py</span>，写作与图表见 <span class="mono">scripts/writing_probe.py</span>。
+</div>
+
+</body>
+</html>
