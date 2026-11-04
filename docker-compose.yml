@@ -1,0 +1,43 @@
+name: sciloom
+
+services:
+  api:
+    build:
+      context: ./apps/api
+    env_file: .env
+    environment:
+      # 容器内网访问，避免每次请求走公网回环
+      DATA_DIR: /app/data
+      HF_HOME: /models/hf
+    volumes:
+      - ./data:/app/data
+      - hf-models:/models
+    expose:
+      - "8000"
+    restart: always
+
+  web:
+    build:
+      context: ./apps/web
+    environment:
+      API_ORIGIN: http://api:8000
+      NODE_ENV: production
+    depends_on:
+      - api
+    expose:
+      - "3000"
+    restart: always
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - web
+      - api
+    restart: always
+
+volumes:
+  hf-models:
