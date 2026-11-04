@@ -7,6 +7,7 @@ import DocumentWorkspace from "@/components/DocumentWorkspace";
 import { DuplicateNotice } from "@/components/DuplicateNotice";
 import LibraryRail from "@/components/LibraryRail";
 import SearchView from "@/components/SearchView";
+import WritingView from "@/components/WritingView";
 import {
   type DocumentSummary,
   type ParsedDocument,
@@ -24,7 +25,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState<DocumentSummary | null>(null);
-  const [view, setView] = useState<"doc" | "graph" | "search">("doc");
+  const [view, setView] = useState<"doc" | "graph" | "search" | "writing">("doc");
 
   const refresh = useCallback(async () => {
     const list = await listDocuments();
@@ -104,6 +105,7 @@ export default function Home() {
         onUpload={handleUpload}
         onOpenGraph={() => setView("graph")}
         onOpenSearch={() => setView("search")}
+        onOpenWriting={() => setView("writing")}
       />
       {view === "graph" ? (
         <CitationGraphView
@@ -114,6 +116,8 @@ export default function Home() {
         />
       ) : view === "search" ? (
         <SearchView onIngested={() => void refresh()} />
+      ) : view === "writing" ? (
+        <WritingView />
       ) : parsed ? (
         <DocumentWorkspace parsed={parsed} />
       ) : (

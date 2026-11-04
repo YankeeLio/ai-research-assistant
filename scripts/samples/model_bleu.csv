@@ -1,0 +1,6 @@
+model,bleu_en_de,bleu_en_fr,params_m
+ByteNet,23.75,39.20,250
+ConvS2S,25.16,40.46,2100
+GNMT+RL,24.60,39.92,2000
+Transformer_base,27.30,38.10,65
+Transformer_big,28.40,41.80,213

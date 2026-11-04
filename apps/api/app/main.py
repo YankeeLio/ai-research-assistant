@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .core.config import get_settings
-from .routers import arxiv, documents, graph, qa, translation
+from .routers import arxiv, documents, graph, qa, translation, writing
 
 settings = get_settings()
 logging.basicConfig(
@@ -62,6 +62,7 @@ app.include_router(qa.router, prefix="/api")
 app.include_router(translation.router, prefix="/api")
 app.include_router(graph.router, prefix="/api")
 app.include_router(arxiv.router, prefix="/api")
+app.include_router(writing.router, prefix="/api")
 
 
 @app.get("/api/health", tags=["system"])

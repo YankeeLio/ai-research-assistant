@@ -269,3 +269,60 @@ export async function ingestArxiv(
     }),
   );
 }
+
+export type OutlineResult = {
+  mode: string;
+  idea: string;
+  markdown: string;
+  references: { index: number; title: string; doc_id: string }[];
+  warnings: string[];
+};
+
+export async function generateOutline(idea: string, topK = 5): Promise<OutlineResult> {
+  return json(
+    await fetch("/api/writing/outline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idea, top_k: topK }),
+    }),
+  );
+}
+
+export type DiagramResult = {
+  title: string;
+  stages: string[];
+  mermaid: string;
+  tikz: string;
+  graphviz: string;
+};
+
+export async function generateDiagram(stages: string[], title: string): Promise<DiagramResult> {
+  return json(
+    await fetch("/api/writing/diagram", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stages, title }),
+    }),
+  );
+}
+
+export type ChartResult = {
+  figure_id: string;
+  url: string;
+  chart_type: string;
+  caption: string;
+  summary: string[];
+  rows: number;
+  columns: { name: string; kind: string }[];
+};
+
+export async function uploadCsv(file: File, title: string): Promise<ChartResult> {
+  const form = new FormData();
+  form.append("file", file);
+  return json(
+    await fetch(`/api/viz/chart?title=${encodeURIComponent(title)}`, {
+      method: "POST",
+      body: form,
+    }),
+  );
+}

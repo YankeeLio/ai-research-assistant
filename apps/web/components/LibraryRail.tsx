@@ -9,11 +9,12 @@ type Props = {
   activeId: string | null;
   uploading: boolean;
   error: string;
-  activeView: "doc" | "graph" | "search";
+  activeView: "doc" | "graph" | "search" | "writing";
   onSelect: (id: string) => void;
   onUpload: (file: File) => void;
   onOpenGraph: () => void;
   onOpenSearch: () => void;
+  onOpenWriting: () => void;
 };
 
 export default function LibraryRail({
@@ -26,6 +27,7 @@ export default function LibraryRail({
   onUpload,
   onOpenGraph,
   onOpenSearch,
+  onOpenWriting,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -81,6 +83,17 @@ export default function LibraryRail({
           }`}
         >
           ◈ 检索发现
+        </button>
+        <button
+          type="button"
+          onClick={onOpenWriting}
+          className={`mt-2 w-full border px-3 py-2 text-left text-[13px] transition-colors ${
+            activeView === "writing"
+              ? "border-white/60 bg-white/10"
+              : "border-white/20 hover:border-white/50 hover:bg-white/5"
+          }`}
+        >
+          ✎ 写作 Copilot
         </button>
       </div>
 
