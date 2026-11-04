@@ -42,6 +42,23 @@ MATH_FONT_HINTS = ("CMMI", "CMSY", "CMEX", "MSBM", "Symbol", "MTMI", "MTSY", "EU
 CAPTION_RE = re.compile(r"^(figure|table|fig\.|algorithm)\s*\d+", re.I)
 ARXIV_STAMP_RE = re.compile(r"^arxiv:\s*\d{4}\.\d{4,5}", re.I)
 DATE_ONLY_RE = re.compile(r"^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{4}$", re.I)
+YEAR_IN_TEXT_RE = re.compile(r"\b(?:19|20)\d{2}\b")
+
+
+def _looks_like_reference(text: str) -> bool:
+    """作者-年份式参考文献的启发式判定。
+
+    判据：够长、含四位年份、以大写字母开头、不是图表标题、且不是以句号收尾的普通正文。
+    """
+    if len(text) < 40 or len(text) > 1200:
+        return False
+    if not YEAR_IN_TEXT_RE.search(text):
+        return False
+    if CAPTION_RE.match(text):
+        return False
+    if not text[0].isupper():
+        return False
+    return True
 
 NAMED_SECTIONS = {
     "abstract",
@@ -486,12 +503,19 @@ class PdfParser:
         return -1
 
     def _parse_references(self, blocks: list[_RawBlock], start: int) -> list[Reference]:
+        """参考文献解析：同时支持两种排版。
+
+        - 数字式：`[12] Author. Title.` 或 `12. Author. Title.`（NeurIPS/IEEE 常见）
+        - 作者-年份式：`Alan Akbik, Duncan Blythe, and Roland Vollgraf. 2018. Title.`
+          （ACL/NAACL 常见，**没有任何编号**，只按编号匹配会一篇都解析不出来）
+        """
         self._ref_blocks: list[_RawBlock] = []
         if start < 0:
             return []
 
         refs: list[Reference] = []
         current: tuple[int, _RawBlock, list[str]] | None = None
+        auto_index = 0
 
         for b in blocks[start + 1 :]:
             if b.text.lower().startswith(("appendix", "supplementary", "a appendix")):
@@ -501,7 +525,15 @@ class PdfParser:
                 if current:
                     refs.append(self._make_reference(*current))
                     self._ref_blocks.append(current[1])
-                current = (int(m.group(1)), b, [REF_START_RE.sub("", b.text)])
+                index = int(m.group(1))
+                auto_index = max(auto_index, index)
+                current = (index, b, [REF_START_RE.sub("", b.text)])
+            elif _looks_like_reference(b.text):
+                if current:
+                    refs.append(self._make_reference(*current))
+                    self._ref_blocks.append(current[1])
+                auto_index += 1
+                current = (auto_index, b, [b.text])
             elif current is not None and len(b.text) < 500:
                 current[2].append(b.text)
         if current:

@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .core.config import get_settings
-from .routers import documents, qa, translation
+from .routers import documents, graph, qa, translation
 
 settings = get_settings()
 logging.basicConfig(
@@ -60,6 +60,7 @@ app.add_middleware(
 app.include_router(documents.router, prefix="/api")
 app.include_router(qa.router, prefix="/api")
 app.include_router(translation.router, prefix="/api")
+app.include_router(graph.router, prefix="/api")
 
 
 @app.get("/api/health", tags=["system"])

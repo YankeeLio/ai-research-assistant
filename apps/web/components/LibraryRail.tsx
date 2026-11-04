@@ -9,11 +9,22 @@ type Props = {
   activeId: string | null;
   uploading: boolean;
   error: string;
+  activeView: "doc" | "graph";
   onSelect: (id: string) => void;
   onUpload: (file: File) => void;
+  onOpenGraph: () => void;
 };
 
-export default function LibraryRail({ docs, activeId, uploading, error, onSelect, onUpload }: Props) {
+export default function LibraryRail({
+  docs,
+  activeId,
+  uploading,
+  error,
+  activeView,
+  onSelect,
+  onUpload,
+  onOpenGraph,
+}: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -46,6 +57,18 @@ export default function LibraryRail({ docs, activeId, uploading, error, onSelect
           }}
         />
         {error ? <p className="mt-2 text-[11px] leading-relaxed text-signal">{error}</p> : null}
+        <button
+          type="button"
+          onClick={onOpenGraph}
+          disabled={docs.length === 0}
+          className={`mt-2 w-full border px-3 py-2 text-left text-[13px] transition-colors disabled:opacity-40 ${
+            activeView === "graph"
+              ? "border-white/60 bg-white/10"
+              : "border-white/20 hover:border-white/50 hover:bg-white/5"
+          }`}
+        >
+          ◇ 引用图谱
+        </button>
       </div>
 
       <nav className="min-h-0 flex-1 overflow-y-auto px-3 pb-6">

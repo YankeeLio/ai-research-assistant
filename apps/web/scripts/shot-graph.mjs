@@ -1,0 +1,43 @@
+/**
+ * 引用图谱截图：点左侧"引用图谱"，等布局稳定后截屏，再点一个节点回到文档。
+ * 用法（在 apps/web 下）：node scripts/shot-graph.mjs
+ */
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+import puppeteer from "puppeteer-core";
+
+process.env.PATH = `C:\\Windows\\System32;${process.env.PATH ?? ""}`;
+
+const EDGE = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
+const outDir = path.resolve("../../assets/shots");
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const browser = await puppeteer.launch({
+  executablePath: EDGE,
+  headless: "new",
+  args: ["--no-sandbox", "--disable-gpu", "--window-size=1600,1000"],
+});
+
+try {
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1600, height: 1000 });
+  await page.goto("http://127.0.0.1:3000/", { waitUntil: "networkidle2", timeout: 60000 });
+  await wait(2500);
+
+  const buttons = await page.$$("aside button");
+  for (const b of buttons) {
+    const text = await page.evaluate((el) => el.textContent || "", b);
+    if (text.includes("引用图谱")) {
+      await b.click();
+      break;
+    }
+  }
+
+  await wait(6000);
+  await mkdir(outDir, { recursive: true });
+  await page.screenshot({ path: path.join(outDir, "graph.png") });
+  console.log("saved graph.png");
+} finally {
+  await browser.close().catch(() => {});
+  process.exit(0);
+}

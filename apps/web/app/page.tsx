@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import CitationGraphView from "@/components/CitationGraphView";
 import DocumentWorkspace from "@/components/DocumentWorkspace";
 import { DuplicateNotice } from "@/components/DuplicateNotice";
 import LibraryRail from "@/components/LibraryRail";
@@ -22,6 +23,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState<DocumentSummary | null>(null);
+  const [view, setView] = useState<"doc" | "graph">("doc");
 
   const refresh = useCallback(async () => {
     const list = await listDocuments();
@@ -93,10 +95,22 @@ export default function Home() {
         activeId={activeId}
         uploading={uploading}
         error={error}
-        onSelect={setActiveId}
+        activeView={view}
+        onSelect={(id) => {
+          setView("doc");
+          setActiveId(id);
+        }}
         onUpload={handleUpload}
+        onOpenGraph={() => setView("graph")}
       />
-      {parsed ? (
+      {view === "graph" ? (
+        <CitationGraphView
+          onOpenDoc={(id) => {
+            setView("doc");
+            setActiveId(id);
+          }}
+        />
+      ) : parsed ? (
         <DocumentWorkspace parsed={parsed} />
       ) : (
         <EmptyState loading={loading} error={error} />

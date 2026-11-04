@@ -179,3 +179,44 @@ export async function translateDocument(docId: string, force = false): Promise<T
   if (!result) throw new Error("译文生成失败");
   return result;
 }
+
+export type GraphNode = {
+  id: string;
+  label: string;
+  year: number | null;
+  in_library: boolean;
+  degree_in: number;
+  degree_out: number;
+  pagerank: number;
+  betweenness: number;
+  role: "foundational" | "bridge" | "derivative" | "normal";
+  page_count: number;
+};
+
+export type GraphPayload = {
+  nodes: GraphNode[];
+  edges: { source: string; target: string; kind: string }[];
+  stats: {
+    documents: number;
+    nodes: number;
+    edges: number;
+    internal_edges: number;
+    density: number;
+    is_dag: boolean;
+    components: number;
+  };
+};
+
+export type SurveyPayload = {
+  summary: string;
+  foundational: { id: string; label: string; pagerank: number; degree_in: number }[];
+  future_work: { doc_id: string; title: string; page: number; text: string }[];
+};
+
+export async function getGraph(): Promise<GraphPayload> {
+  return json<GraphPayload>(await fetch("/api/graph", { cache: "no-store" }));
+}
+
+export async function getSurvey(): Promise<SurveyPayload> {
+  return json<SurveyPayload>(await fetch("/api/graph/survey", { cache: "no-store" }));
+}
