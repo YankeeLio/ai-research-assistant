@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from collections.abc import AsyncIterator
 
 from ..core.config import get_settings
@@ -44,6 +44,7 @@ class Evidence:
     section: str
     text: str
     score: float
+    block_ids: list[str] = field(default_factory=list)
 
 
 def load_index(doc_id: str) -> DocumentIndex | None:
@@ -111,6 +112,7 @@ def _format_evidence(chunks: list[tuple[Chunk, float]]) -> tuple[str, list[Evide
                 section=chunk.section_path,
                 text=chunk.text,
                 score=round(score, 4),
+                block_ids=chunk.block_ids,
             )
         )
         blocks.append(f"[{tag}] (p.{chunk.page + 1} · {chunk.section_path or '正文'})\n{chunk.text}")
@@ -124,21 +126,41 @@ def _validate(answer: str, evidence: list[Evidence]) -> tuple[str, list[str]]:
     return cleaned, sorted(unknown)
 
 
+NUMERIC_QUESTION_RE = re.compile(r"多少|几|数量|how many|how much|number of|尺寸|dimension", re.I)
+
+
 def _extractive(question: str, chunks: list[tuple[Chunk, float]]) -> str:
-    """无模型时的抽取式回答：从最相关块里挑与问题重合度最高的句子。"""
+    """无模型时的抽取式回答：从检索到的块里挑最贴题的句子。
+
+    问数量类问题时给"含数字的句子"加权——这不是炫技，而是因为跨语言提问时
+    中文词与英文句子几乎没有字面重合，只按词重合度挑，会选中同样提到 GPU
+    但并没有给出数量的句子。
+    """
     q_tokens = set(tokenize(question))
+    want_number = bool(NUMERIC_QUESTION_RE.search(question))
     best: list[tuple[float, str, str]] = []
-    for chunk, _score in chunks[:3]:
+    for chunk, _score in chunks[:5]:
         for sentence in re.split(r"(?<=[.!?。！？])\s+", chunk.text):
             if len(sentence) < 20:
                 continue
             overlap = len(q_tokens & set(tokenize(sentence))) / (len(q_tokens) or 1)
-            best.append((overlap, sentence.strip(), chunk.id))
+            score = overlap
+            if want_number and re.search(r"\d", sentence):
+                score += 0.35
+            best.append((score, sentence.strip(), chunk.id))
     best.sort(key=lambda x: -x[0])
-    if not best or best[0][0] == 0:
+    if not best or best[0][0] <= 0:
         return "现有材料不足以回答该问题。"
     tag_map = {c.id: f"c{i}" for i, (c, _s) in enumerate(chunks, start=1)}
-    picked = [f"{s} [{tag_map[cid]}]" for score, s, cid in best[:3] if score > 0]
+    picked: list[str] = []
+    seen: set[str] = set()
+    for score, sentence, cid in best:
+        if score <= 0 or sentence in seen:
+            continue
+        seen.add(sentence)
+        picked.append(f"{sentence} [{tag_map[cid]}]")
+        if len(picked) >= 2:
+            break
     return "（抽取式回答，未调用大模型）\n" + " ".join(picked)
 
 
@@ -193,18 +215,18 @@ async def stream_answer(doc_id: str, question: str, top_k: int = 8) -> AsyncIter
     """SSE 流：先发证据，再发 token，最后发校验结果。"""
     index = load_index(doc_id)
     if index is None:
-        yield _sse({"type": "error", "message": "index_missing"})
+        yield sse({"type": "error", "message": "index_missing"})
         return
 
     chunks = index.search(question, top_k=top_k)
     context, evidence = _format_evidence(chunks)
-    yield _sse({"type": "evidence", "items": [asdict(e) for e in evidence]})
+    yield sse({"type": "evidence", "items": [asdict(e) for e in evidence]})
 
     client = LLMClient()
     if not client.available:
         text = _extractive(question, chunks)
-        yield _sse({"type": "delta", "text": text})
-        yield _sse({"type": "done", "warnings": ["llm_not_configured"], "mode": "extractive"})
+        yield sse({"type": "delta", "text": text})
+        yield sse({"type": "done", "warnings": ["llm_not_configured"], "mode": "extractive"})
         return
 
     messages = [
@@ -215,20 +237,20 @@ async def stream_answer(doc_id: str, question: str, top_k: int = 8) -> AsyncIter
     try:
         async for piece in client.stream(messages):
             raw_parts.append(piece)
-            yield _sse({"type": "delta", "text": piece})
+            yield sse({"type": "delta", "text": piece})
     except LLMNotConfigured:
-        yield _sse({"type": "error", "message": "llm_not_configured"})
+        yield sse({"type": "error", "message": "llm_not_configured"})
         return
     except Exception as exc:  # noqa: BLE001
-        yield _sse({"type": "error", "message": str(exc)[:200]})
+        yield sse({"type": "error", "message": str(exc)[:200]})
         return
 
     answer_text, unknown = _validate("".join(raw_parts), evidence)
     warnings = [f"unknown_citations_removed: {','.join(unknown)}"] if unknown else []
     if not CITE_TAG_RE.search(answer_text):
         warnings.append("ungrounded: 回答未绑定任何证据")
-    yield _sse({"type": "done", "warnings": warnings, "mode": "llm"})
+    yield sse({"type": "done", "warnings": warnings, "mode": "llm"})
 
 
-def _sse(payload: dict) -> str:
+def sse(payload: dict) -> str:
     return f"event: message\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -29,11 +30,20 @@ async def ask(req: AskRequest) -> dict:
 async def stream(
     doc_id: str = Query(...), q: str = Query(..., min_length=1, max_length=500), top_k: int = 8
 ):
-    index = qa.ensure_index(doc_id)
-    if index is None:
-        raise HTTPException(status_code=404, detail="文档不存在或尚未解析")
+    async def generate():
+        # 首次提问时索引可能还没建好：先推一条状态帧，避免前端对着空白等一分钟
+        if qa.load_index(doc_id) is None:
+            yield qa.sse({"type": "status", "message": "正在建立检索索引…"})
+            index = await run_in_threadpool(qa.ensure_index, doc_id)
+            if index is None:
+                yield qa.sse({"type": "error", "message": "文档不存在或尚未解析"})
+                return
+            yield qa.sse({"type": "status", "message": "索引就绪，开始检索…"})
+        async for chunk in qa.stream_answer(doc_id, q, top_k=top_k):
+            yield chunk
+
     return StreamingResponse(
-        qa.stream_answer(doc_id, q, top_k=top_k),
+        generate(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

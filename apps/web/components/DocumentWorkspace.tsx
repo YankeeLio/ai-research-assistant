@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import PdfReader from "@/components/PdfReader";
+import QaPanel from "@/components/QaPanel";
 import type { Block, ParsedDocument, Section } from "@/lib/api";
 
 type Tab = "reader" | "abstract" | "sections" | "references" | "tables";
@@ -11,6 +12,7 @@ type Focus = { page: number; bbox: number[] } | null;
 export default function DocumentWorkspace({ parsed }: { parsed: ParsedDocument }) {
   const [tab, setTab] = useState<Tab>("reader");
   const [focus, setFocus] = useState<Focus>(null);
+  const [qaOpen, setQaOpen] = useState(true);
   const stats = parsed.stats;
 
   const blocksById = useMemo(() => {
@@ -27,6 +29,12 @@ export default function DocumentWorkspace({ parsed }: { parsed: ParsedDocument }
   const jumpToRef = (refIndex: number) => {
     const anchor = parsed.cite_anchors.find((a) => a.ref_index === refIndex);
     if (anchor) setFocus({ page: anchor.page, bbox: anchor.bbox });
+  };
+
+  const jumpFromQa = (page: number, blockId?: string) => {
+    const block = blockId ? blocksById.get(blockId) : undefined;
+    setFocus({ page, bbox: block?.bbox ?? [0, 0, 40, 12] });
+    setTab("reader");
   };
 
   return (
@@ -53,7 +61,7 @@ export default function DocumentWorkspace({ parsed }: { parsed: ParsedDocument }
       </header>
 
       <div className="border-b border-haze bg-mist px-10">
-        <div className="flex">
+        <div className="flex items-center">
           {(
             [
               ["reader", "阅读"],
@@ -67,24 +75,38 @@ export default function DocumentWorkspace({ parsed }: { parsed: ParsedDocument }
               {label}
             </button>
           ))}
+          {!qaOpen ? (
+            <button
+              type="button"
+              onClick={() => setQaOpen(true)}
+              className="ml-auto mb-1 border border-blueprint px-2.5 py-1 text-[11.5px] text-blueprint hover:bg-blueprint hover:text-mist"
+            >
+              问答
+            </button>
+          ) : null}
         </div>
       </div>
 
-      <main
-        className={
-          tab === "reader"
-            ? "min-h-0 flex-1 overflow-hidden"
-            : "min-h-0 flex-1 overflow-y-auto bg-paper px-10 py-8"
-        }
-      >
-        {tab === "reader" ? (
-          <PdfReader docId={parsed.doc_id} anchors={parsed.cite_anchors} focus={focus} />
+      <div className="flex min-h-0 flex-1">
+        <main
+          className={
+            tab === "reader"
+              ? "min-h-0 flex-1 overflow-hidden"
+              : "min-h-0 flex-1 overflow-y-auto bg-paper px-10 py-8"
+          }
+        >
+          {tab === "reader" ? (
+            <PdfReader docId={parsed.doc_id} anchors={parsed.cite_anchors} focus={focus} />
+          ) : null}
+          {tab === "abstract" ? <AbstractPanel parsed={parsed} onJump={jumpToBlock} /> : null}
+          {tab === "sections" ? <SectionsPanel parsed={parsed} onJump={jumpToBlock} /> : null}
+          {tab === "references" ? <ReferencesPanel parsed={parsed} onJump={jumpToRef} /> : null}
+          {tab === "tables" ? <TablesPanel parsed={parsed} /> : null}
+        </main>
+        {qaOpen ? (
+          <QaPanel docId={parsed.doc_id} onJump={jumpFromQa} onCollapse={() => setQaOpen(false)} />
         ) : null}
-        {tab === "abstract" ? <AbstractPanel parsed={parsed} onJump={jumpToBlock} /> : null}
-        {tab === "sections" ? <SectionsPanel parsed={parsed} onJump={jumpToBlock} /> : null}
-        {tab === "references" ? <ReferencesPanel parsed={parsed} onJump={jumpToRef} /> : null}
-        {tab === "tables" ? <TablesPanel parsed={parsed} /> : null}
-      </main>
+      </div>
     </div>
   );
 }

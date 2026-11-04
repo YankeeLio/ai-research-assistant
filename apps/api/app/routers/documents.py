@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 
@@ -18,6 +19,8 @@ from ..core.config import get_settings
 from ..models.schema import DocumentSummary, ParsedDocument
 from ..services import dedupe, version_diff
 from ..services.parser import PdfParser
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -144,7 +147,9 @@ def _parse_and_store(doc_id: str, pdf_path: Path, file_name: str) -> DocumentSum
 
 
 @router.post("/upload", response_model=DocumentSummary)
-async def upload_document(file: UploadFile = File(...)) -> DocumentSummary:
+async def upload_document(
+    background: BackgroundTasks, file: UploadFile = File(...)
+) -> DocumentSummary:
     if not (file.filename or "").lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="仅支持 PDF 文件")
 
@@ -159,9 +164,21 @@ async def upload_document(file: UploadFile = File(...)) -> DocumentSummary:
     pdf_path = target_dir / "original.pdf"
     pdf_path.write_bytes(raw)
 
-    return await run_in_threadpool(
+    summary = await run_in_threadpool(
         _parse_and_store, doc_id, pdf_path, file.filename or "untitled.pdf"
     )
+    # 向量索引在后台建：解析已经够慢，不该让上传接口再多等一分钟
+    background.add_task(_warm_index, doc_id)
+    return summary
+
+
+def _warm_index(doc_id: str) -> None:
+    from ..services import qa
+
+    try:
+        qa.ensure_index(doc_id)
+    except Exception as exc:  # noqa: BLE001 - 预热失败不应影响已入库文档
+        logger.warning("索引预热失败 %s: %s", doc_id, exc)
 
 
 @router.get("", response_model=list[DocumentSummary])

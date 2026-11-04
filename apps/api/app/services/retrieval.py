@@ -177,18 +177,38 @@ class DocumentIndex:
 
     # ----------------------------------------------------------------- search
     def search(self, query: str, top_k: int = 8) -> list[tuple[Chunk, float]]:
+        """稠密召回 + 稀疏重排。
+
+        稀疏检索不作独立召回，只在稠密召回的候选集内重排：实测（见
+        scripts/eval_retrieval.py）让 BM25 独立参与融合时，跨语言或口语化提问会让
+        无关片段挤掉正确答案；限定在短名单内既能拿到"精确串"的收益，又不会引入噪声。
+        """
         if not self.chunks:
             return []
-        sparse = self.bm25.scores(tokenize(query))
+        q_tokens = tokenize(query)
+        sparse = self.bm25.scores(q_tokens)
 
         embedder = get_embedder()
-        qvec = embedder.encode([query])[0]
-        dense = self.vectors @ qvec
+        dense = self.vectors @ embedder.encode([query])[0]
 
-        fused = 0.3 * _rrf(sparse) + 1.0 * _rrf(dense)
-        order = np.argsort(-fused)[:max(top_k * 3, top_k)]
-        picked = [(self.chunks[i], float(fused[i])) for i in order]
-        return picked[:top_k]
+        shortlist = np.argsort(-dense)[: max(50, top_k * 5)]
+        weight = self._sparse_weight(q_tokens)
+        fused = _rrf(dense[shortlist]) + weight * _rrf(sparse[shortlist])
+        order = shortlist[np.argsort(-fused)][:top_k]
+        return [(self.chunks[i], float(dense[i])) for i in order]
+
+    def _sparse_weight(self, q_tokens: list[str]) -> float:
+        """按"查询词在语料中的覆盖率"决定 BM25 的权重。
+
+        跨语言检索时（中文提问、英文论文），BM25 的分词几乎全部落空，
+        它给出的排序是噪声，会把已经很准的向量结果挤掉。覆盖率低就关闭这一路，
+        覆盖率正常时保留 0.35 的权重用于命中数字、型号、指标名这类精确串。
+        """
+        if not q_tokens:
+            return 0.0
+        known = sum(1 for t in q_tokens if t in self.bm25.idf)
+        coverage = known / len(q_tokens)
+        return 0.35 if coverage >= 0.3 else 0.0
 
 
 def _minmax(values: np.ndarray) -> np.ndarray:
@@ -200,15 +220,11 @@ def _minmax(values: np.ndarray) -> np.ndarray:
     return (values - lo) / (hi - lo)
 
 
-def _rrf(sparse: np.ndarray, dense: np.ndarray, k: int = 60) -> np.ndarray:
-    """Reciprocal Rank Fusion。
+def _rrf(values: np.ndarray, k: int = 60) -> np.ndarray:
+    """Reciprocal Rank Fusion（单路得分 → 排名倒数）。
 
     两路分数的量纲不可比（BM25 无上界、余弦在 [-1,1]），直接加权需要调参且不稳定；
-    RRF 只使用排名，对分数分布不敏感，是混合检索的常用做法。
+    RRF 只使用排名，对分数分布不敏感，是混合检索的常用做法。两路按权重相加即可。
     """
-    n = len(sparse)
-    fused = np.zeros(n, dtype=np.float32)
-    for values in (sparse, dense):
-        ranks = np.argsort(np.argsort(-values)) + 1  # 1 为最相关
-        fused += 1.0 / (k + ranks)
-    return fused
+    ranks = np.argsort(np.argsort(-values)) + 1  # 1 为最相关
+    return (1.0 / (k + ranks)).astype(np.float32)
