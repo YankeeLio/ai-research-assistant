@@ -83,7 +83,7 @@ export default function CitationGraphView({ onOpenDoc }: { onOpenDoc: (docId: st
               // 只给库内节点和有角色的外部节点加标签，否则 60 个标签会糊成一团
               "text-opacity": (ele: import("cytoscape").NodeSingular) =>
                 ele.data("library") || ele.data("role") !== "normal" ? 1 : 0,
-              "text-max-width": 90,
+              "text-max-width": "90px",
               "text-wrap": "ellipsis",
             },
           },

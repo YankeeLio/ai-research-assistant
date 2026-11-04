@@ -220,3 +220,52 @@ export async function getGraph(): Promise<GraphPayload> {
 export async function getSurvey(): Promise<SurveyPayload> {
   return json<SurveyPayload>(await fetch("/api/graph/survey", { cache: "no-store" }));
 }
+
+export type ArxivItem = {
+  arxiv_id: string;
+  title: string;
+  summary: string;
+  authors: string[];
+  published: string;
+  updated: string;
+  categories: string[];
+  comment: string;
+  code_url: string;
+  pdf_url: string;
+  score: number;
+  relevance: number;
+  reasons: string[];
+  in_library: boolean;
+};
+
+export async function searchArxiv(
+  q: string,
+  maxResults = 12,
+): Promise<{ query: string; count: number; filtered_in_library: number; items: ArxivItem[] }> {
+  return json(
+    await fetch(`/api/arxiv/search?q=${encodeURIComponent(q)}&max_results=${maxResults}`, {
+      cache: "no-store",
+    }),
+  );
+}
+
+export async function recommendPapers(
+  q: string,
+  topK = 6,
+): Promise<{ query: string; library_size: number; items: ArxivItem[] }> {
+  return json(
+    await fetch(`/api/recommend?q=${encodeURIComponent(q)}&top_k=${topK}`, { cache: "no-store" }),
+  );
+}
+
+export async function ingestArxiv(
+  arxivId: string,
+): Promise<{ document: DocumentSummary; paper: ArxivItem }> {
+  return json(
+    await fetch("/api/arxiv/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ arxiv_id: arxivId }),
+    }),
+  );
+}

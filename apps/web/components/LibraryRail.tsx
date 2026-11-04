@@ -9,10 +9,11 @@ type Props = {
   activeId: string | null;
   uploading: boolean;
   error: string;
-  activeView: "doc" | "graph";
+  activeView: "doc" | "graph" | "search";
   onSelect: (id: string) => void;
   onUpload: (file: File) => void;
   onOpenGraph: () => void;
+  onOpenSearch: () => void;
 };
 
 export default function LibraryRail({
@@ -24,6 +25,7 @@ export default function LibraryRail({
   onSelect,
   onUpload,
   onOpenGraph,
+  onOpenSearch,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -68,6 +70,17 @@ export default function LibraryRail({
           }`}
         >
           ◇ 引用图谱
+        </button>
+        <button
+          type="button"
+          onClick={onOpenSearch}
+          className={`mt-2 w-full border px-3 py-2 text-left text-[13px] transition-colors ${
+            activeView === "search"
+              ? "border-white/60 bg-white/10"
+              : "border-white/20 hover:border-white/50 hover:bg-white/5"
+          }`}
+        >
+          ◈ 检索发现
         </button>
       </div>
 

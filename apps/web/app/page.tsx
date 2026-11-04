@@ -6,6 +6,7 @@ import CitationGraphView from "@/components/CitationGraphView";
 import DocumentWorkspace from "@/components/DocumentWorkspace";
 import { DuplicateNotice } from "@/components/DuplicateNotice";
 import LibraryRail from "@/components/LibraryRail";
+import SearchView from "@/components/SearchView";
 import {
   type DocumentSummary,
   type ParsedDocument,
@@ -23,7 +24,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState<DocumentSummary | null>(null);
-  const [view, setView] = useState<"doc" | "graph">("doc");
+  const [view, setView] = useState<"doc" | "graph" | "search">("doc");
 
   const refresh = useCallback(async () => {
     const list = await listDocuments();
@@ -102,6 +103,7 @@ export default function Home() {
         }}
         onUpload={handleUpload}
         onOpenGraph={() => setView("graph")}
+        onOpenSearch={() => setView("search")}
       />
       {view === "graph" ? (
         <CitationGraphView
@@ -110,6 +112,8 @@ export default function Home() {
             setActiveId(id);
           }}
         />
+      ) : view === "search" ? (
+        <SearchView onIngested={() => void refresh()} />
       ) : parsed ? (
         <DocumentWorkspace parsed={parsed} />
       ) : (

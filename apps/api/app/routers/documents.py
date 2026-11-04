@@ -18,7 +18,7 @@ from ..core import db
 from ..core.config import get_settings
 from ..models.schema import DocumentSummary, ParsedDocument
 from ..services import dedupe, version_diff
-from ..services.parser import PdfParser
+from ..services.ingest import store_document
 
 logger = logging.getLogger(__name__)
 
@@ -76,74 +76,8 @@ def _pool(exclude: str | None = None) -> list[dedupe.Fingerprint]:
 
 
 def _parse_and_store(doc_id: str, pdf_path: Path, file_name: str) -> DocumentSummary:
-    settings = get_settings()
-    uploaded_at = datetime.now(timezone.utc).isoformat()
-    version = _version_hint(file_name)
-
-    try:
-        parser = PdfParser(ocr_engine=settings.ocr_engine, max_pages_inline=settings.max_pages_inline)
-        parsed = parser.parse(pdf_path, doc_id)
-        parsed.file_name = file_name  # 落盘名是 original.pdf，对外保持原始文件名
-        db.save_parsed(doc_id, parsed.model_dump())
-
-        fp = dedupe.build_fingerprint(parsed)
-        dedupe.save_fingerprint(fp, _doc_dir(doc_id))
-
-        match = dedupe.find_best_match(fp, _pool(exclude=doc_id))
-        rec = {"action": "", "message": ""}
-        if match is not None:
-            existing = db.get_document(match.doc_id)
-            existing_version = (existing or {}).get("version_hint", "")
-            rec = dedupe.recommend(version, existing_version, match)
-
-        db.upsert_document(
-            {
-                "doc_id": doc_id,
-                "file_name": file_name,
-                "title": parsed.title or file_name,
-                "authors": json.dumps(parsed.authors, ensure_ascii=False),
-                "page_count": parsed.stats.page_count if parsed.stats else 0,
-                "is_scanned": int(parsed.is_scanned),
-                "layout": parsed.layout,
-                "status": "ready",
-                "error": "",
-                "fingerprint": fp.simhash,
-                "simhash": fp.simhash,
-                "version_hint": version,
-                "duplicate_of": match.doc_id if match else None,
-                "dup_similarity": match.similarity if match else 0.0,
-                "dup_verdict": match.verdict if match else "",
-                "dup_action": rec["action"],
-                "dup_message": rec["message"],
-                "uploaded_at": uploaded_at,
-            }
-        )
-
-        row = db.get_document(doc_id)
-        return _row_to_summary(row or {})
-    except Exception as exc:  # noqa: BLE001 - 解析失败要落库，前端才能提示
-        db.upsert_document(
-            {
-                "doc_id": doc_id,
-                "file_name": file_name,
-                "title": file_name,
-                "authors": "[]",
-                "page_count": 0,
-                "is_scanned": 0,
-                "layout": "single",
-                "status": "failed",
-                "error": str(exc)[:500],
-                "fingerprint": "",
-                "simhash": "",
-                "version_hint": version,
-                "dup_similarity": 0.0,
-                "dup_verdict": "",
-                "dup_action": "",
-                "dup_message": "",
-                "uploaded_at": uploaded_at,
-            }
-        )
-        raise HTTPException(status_code=422, detail=f"解析失败: {exc}") from exc
+    """入库管道在 services/ingest.py：上传与 arXiv 自动下钻共用同一套逻辑。"""
+    return store_document(doc_id, pdf_path, file_name)
 
 
 @router.post("/upload", response_model=DocumentSummary)
