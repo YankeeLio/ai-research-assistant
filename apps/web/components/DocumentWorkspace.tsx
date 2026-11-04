@@ -2,27 +2,46 @@
 
 import { useMemo, useState } from "react";
 
+import PdfReader from "@/components/PdfReader";
 import type { Block, ParsedDocument, Section } from "@/lib/api";
 
-type Tab = "abstract" | "sections" | "references" | "tables";
+type Tab = "reader" | "abstract" | "sections" | "references" | "tables";
+type Focus = { page: number; bbox: number[] } | null;
 
 export default function DocumentWorkspace({ parsed }: { parsed: ParsedDocument }) {
-  const [tab, setTab] = useState<Tab>("abstract");
+  const [tab, setTab] = useState<Tab>("reader");
+  const [focus, setFocus] = useState<Focus>(null);
   const stats = parsed.stats;
+
+  const blocksById = useMemo(() => {
+    const map = new Map<string, Block>();
+    for (const b of parsed.blocks) map.set(b.id, b);
+    return map;
+  }, [parsed.blocks]);
+
+  const jumpToBlock = (blockId: string) => {
+    const block = blocksById.get(blockId);
+    if (block) setFocus({ page: block.page, bbox: block.bbox });
+  };
+
+  const jumpToRef = (refIndex: number) => {
+    const anchor = parsed.cite_anchors.find((a) => a.ref_index === refIndex);
+    if (anchor) setFocus({ page: anchor.page, bbox: anchor.bbox });
+  };
 
   return (
     <div className="flex h-screen min-w-0 flex-1 flex-col">
-      <header className="sheet-grid border-b border-haze bg-mist px-10 pb-5 pt-9">
-        <div className="max-w-[860px]">
-          <h1 className="font-serif text-[30px] leading-[1.2] tracking-tight text-ink">
+      <header className="sheet-grid border-b border-haze bg-mist px-10 pb-4 pt-7">
+        <div className="max-w-[900px]">
+          <h1 className="font-serif text-[26px] leading-[1.2] tracking-tight text-ink">
             {parsed.title || parsed.file_name}
           </h1>
           {parsed.authors.length > 0 ? (
-            <p className="mt-3 text-[13px] leading-relaxed text-ink/70">
+            <p className="mt-2 text-[12.5px] leading-relaxed text-ink/70">
               {parsed.authors.join(" · ")}
             </p>
           ) : null}
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-ink/50">
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[10.5px] text-ink/50">
             <span>{stats?.page_count ?? 0} 页</span>
             <span>{parsed.layout === "double" ? "双栏" : parsed.layout === "mixed" ? "混合版式" : "单栏"}</span>
             <span>{parsed.is_scanned ? "扫描件 OCR" : "原生文本层"}</span>
@@ -37,7 +56,8 @@ export default function DocumentWorkspace({ parsed }: { parsed: ParsedDocument }
         <div className="flex">
           {(
             [
-              ["abstract", "摘要"],
+              ["reader", "阅读"],
+              ["abstract", "正文"],
               ["sections", `章节树 · ${stats?.heading_count ?? 0}`],
               ["references", `参考文献 · ${stats?.reference_count ?? 0}`],
               ["tables", `表格 · ${stats?.table_count ?? 0}`],
@@ -50,10 +70,19 @@ export default function DocumentWorkspace({ parsed }: { parsed: ParsedDocument }
         </div>
       </div>
 
-      <main className="min-h-0 flex-1 overflow-y-auto bg-paper px-10 py-8">
-        {tab === "abstract" ? <AbstractPanel parsed={parsed} /> : null}
-        {tab === "sections" ? <SectionsPanel parsed={parsed} /> : null}
-        {tab === "references" ? <ReferencesPanel parsed={parsed} /> : null}
+      <main
+        className={
+          tab === "reader"
+            ? "min-h-0 flex-1 overflow-hidden"
+            : "min-h-0 flex-1 overflow-y-auto bg-paper px-10 py-8"
+        }
+      >
+        {tab === "reader" ? (
+          <PdfReader docId={parsed.doc_id} anchors={parsed.cite_anchors} focus={focus} />
+        ) : null}
+        {tab === "abstract" ? <AbstractPanel parsed={parsed} onJump={jumpToBlock} /> : null}
+        {tab === "sections" ? <SectionsPanel parsed={parsed} onJump={jumpToBlock} /> : null}
+        {tab === "references" ? <ReferencesPanel parsed={parsed} onJump={jumpToRef} /> : null}
         {tab === "tables" ? <TablesPanel parsed={parsed} /> : null}
       </main>
     </div>
@@ -64,26 +93,28 @@ function Rail({ page }: { page: number }) {
   return <div className="rail">p.{page + 1}</div>;
 }
 
-function AbstractPanel({ parsed }: { parsed: ParsedDocument }) {
-  const groups = useMemo(() => groupByPage(parsed.blocks.slice(0, 24)), [parsed.blocks]);
+function AbstractPanel({ parsed, onJump }: { parsed: ParsedDocument; onJump: (id: string) => void }) {
+  const groups = useMemo(() => groupByPage(parsed.blocks.slice(0, 30)), [parsed.blocks]);
   return (
     <div className="max-w-[820px]">
       <p className="mb-6 text-[13px] leading-relaxed text-ink/55">
-        以下为解析出的正文段落，左侧页码即原文坐标——后续问答的每条引用都会回到这条轨上。
+        以下为解析出的正文段落，左侧页码即原文坐标。点击任意段落可跳到 PDF 对应位置。
       </p>
       {groups.map(([page, blocks]) => (
         <div key={page} className="flex border-b border-haze/60 py-4 last:border-b-0">
           <Rail page={page} />
           <div className="space-y-2">
             {blocks.map((b) => (
-              <p
+              <button
                 key={b.id}
-                className={`text-[14px] leading-[1.85] ${
+                type="button"
+                onClick={() => onJump(b.id)}
+                className={`block w-full text-left text-[14px] leading-[1.85] hover:bg-mist/70 ${
                   b.kind === "formula" ? "font-mono text-[12.5px] text-ink/70" : ""
                 }`}
               >
                 {b.text}
-              </p>
+              </button>
             ))}
           </div>
         </div>
@@ -93,14 +124,20 @@ function AbstractPanel({ parsed }: { parsed: ParsedDocument }) {
   );
 }
 
-function SectionsPanel({ parsed }: { parsed: ParsedDocument }) {
+function SectionsPanel({
+  parsed,
+  onJump,
+}: {
+  parsed: ParsedDocument;
+  onJump: (blockId: string) => void;
+}) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   return (
     <div className="max-w-[820px]">
       <p className="mb-5 text-[13px] leading-relaxed text-ink/55">
-        标题树由字号、编号与位置共同判定；编号层级（1 / 2.1 / 2.1.3）优先于字号推断。
+        标题树由字号、编号与位置共同判定；编号层级（1 / 2.1 / 2.1.3）优先于字号推断。点击可定位到原文。
       </p>
-      <SectionNodes nodes={parsed.sections} depth={0} open={open} toggle={setOpen} />
+      <SectionNodes nodes={parsed.sections} depth={0} open={open} toggle={setOpen} onJump={onJump} />
       {parsed.sections.length === 0 ? <p className="text-[13px] text-ink/50">未识别到标题。</p> : null}
     </div>
   );
@@ -111,11 +148,13 @@ function SectionNodes({
   depth,
   open,
   toggle,
+  onJump,
 }: {
   nodes: Section[];
   depth: number;
   open: Record<string, boolean>;
   toggle: (v: Record<string, boolean>) => void;
+  onJump: (blockId: string) => void;
 }) {
   return (
     <ul className="space-y-0.5">
@@ -123,30 +162,41 @@ function SectionNodes({
         const expanded = open[node.id] ?? depth < 1;
         return (
           <li key={node.id}>
-            <button
-              type="button"
-              onClick={() => toggle({ ...open, [node.id]: !expanded })}
-              className="flex w-full items-baseline gap-3 border-b border-haze/50 py-2 text-left hover:bg-mist/70"
-              style={{ paddingLeft: depth * 18 }}
-            >
-              <span className="w-12 shrink-0 font-mono text-[11px] text-ink/40">p.{node.page + 1}</span>
-              <span
-                className={
-                  depth === 0
-                    ? "font-serif text-[16px] leading-snug"
-                    : "text-[13.5px] leading-snug text-ink/85"
-                }
+            <div className="flex items-baseline gap-2 border-b border-haze/50">
+              <button
+                type="button"
+                onClick={() => toggle({ ...open, [node.id]: !expanded })}
+                className="w-5 shrink-0 py-2 text-center font-mono text-[10px] text-ink/35"
+                aria-label={expanded ? "折叠" : "展开"}
               >
-                {node.title}
-              </span>
-              {node.children.length > 0 ? (
-                <span className="ml-auto font-mono text-[10px] text-ink/30">
-                  {expanded ? "−" : `+${node.children.length}`}
+                {node.children.length > 0 ? (expanded ? "−" : "+") : "·"}
+              </button>
+              <button
+                type="button"
+                onClick={() => onJump(node.block_id)}
+                className="flex flex-1 items-baseline gap-3 py-2 text-left hover:bg-mist/70"
+                style={{ paddingLeft: depth * 18 }}
+              >
+                <span className="w-12 shrink-0 font-mono text-[11px] text-ink/40">p.{node.page + 1}</span>
+                <span
+                  className={
+                    depth === 0
+                      ? "font-serif text-[16px] leading-snug"
+                      : "text-[13.5px] leading-snug text-ink/85"
+                  }
+                >
+                  {node.title}
                 </span>
-              ) : null}
-            </button>
+              </button>
+            </div>
             {expanded && node.children.length > 0 ? (
-              <SectionNodes nodes={node.children} depth={depth + 1} open={open} toggle={toggle} />
+              <SectionNodes
+                nodes={node.children}
+                depth={depth + 1}
+                open={open}
+                toggle={toggle}
+                onJump={onJump}
+              />
             ) : null}
           </li>
         );
@@ -155,16 +205,28 @@ function SectionNodes({
   );
 }
 
-function ReferencesPanel({ parsed }: { parsed: ParsedDocument }) {
+function ReferencesPanel({
+  parsed,
+  onJump,
+}: {
+  parsed: ParsedDocument;
+  onJump: (refIndex: number) => void;
+}) {
   return (
     <div className="max-w-[860px]">
       <p className="mb-5 text-[13px] leading-relaxed text-ink/55">
-        编号与正文中的 <span className="cite">[n]</span> 一一对应；锚点坐标为字符级，点击即可定位。
+        编号与正文中的 <span className="cite">[n]</span> 一一对应；点击条目可跳到正文引用位置，锚点是字符级坐标。
       </p>
       <ol className="space-y-3">
         {parsed.references.map((ref) => (
           <li key={ref.index} className="flex gap-4 border-b border-haze/50 pb-3">
-            <span className="w-9 shrink-0 pt-0.5 font-mono text-[12px] text-signal">[{ref.index}]</span>
+            <button
+              type="button"
+              onClick={() => onJump(ref.index)}
+              className="w-9 shrink-0 pt-0.5 text-left font-mono text-[12px] text-signal hover:underline"
+            >
+              [{ref.index}]
+            </button>
             <div className="min-w-0">
               <p className="text-[13px] leading-relaxed text-ink/85">{ref.text}</p>
               <p className="mt-1 font-mono text-[10px] text-ink/40">

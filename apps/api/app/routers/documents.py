@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse
 
 from ..core import db
 from ..core.config import get_settings
@@ -182,6 +183,21 @@ def get_parsed(doc_id: str) -> ParsedDocument:
     if payload is None:
         raise HTTPException(status_code=404, detail="解析结果不存在")
     return ParsedDocument.model_validate(payload)
+
+
+@router.get("/{doc_id}/file")
+def get_file(doc_id: str) -> FileResponse:
+    """原始 PDF 字节流，供前端 PDF.js 渲染。"""
+    if not db.get_document(doc_id):
+        raise HTTPException(status_code=404, detail="文档不存在")
+    path = _doc_dir(doc_id) / "original.pdf"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="原始文件缺失")
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{doc_id}.pdf"'},
+    )
 
 
 @router.get("/{doc_id}/duplicates")

@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 
 import DocumentWorkspace from "@/components/DocumentWorkspace";
+import { DuplicateNotice } from "@/components/DuplicateNotice";
 import LibraryRail from "@/components/LibraryRail";
 import {
   type DocumentSummary,
   type ParsedDocument,
   getParsed,
   listDocuments,
+  resolveDuplicate,
   uploadDocument,
 } from "@/lib/api";
 
@@ -19,6 +21,7 @@ export default function Home() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [pending, setPending] = useState<DocumentSummary | null>(null);
 
   const refresh = useCallback(async () => {
     const list = await listDocuments();
@@ -55,6 +58,7 @@ export default function Home() {
         const doc = await uploadDocument(file);
         await refresh();
         setActiveId(doc.doc_id);
+        if (doc.duplicate_of) setPending(doc);
       } catch (e) {
         setError((e as Error).message.slice(0, 200));
       } finally {
@@ -64,8 +68,26 @@ export default function Home() {
     [refresh],
   );
 
+  const handleResolve = useCallback(
+    async (action: "keep_existing" | "replace" | "keep_both") => {
+      if (!pending) return;
+      try {
+        await resolveDuplicate(pending.doc_id, action);
+        setPending(null);
+        const list = await refresh();
+        if (action === "keep_existing") {
+          const target = list.find((d) => d.doc_id === pending.duplicate_of);
+          setActiveId(target?.doc_id ?? list[0]?.doc_id ?? null);
+        }
+      } catch (e) {
+        setError((e as Error).message.slice(0, 200));
+      }
+    },
+    [pending, refresh],
+  );
+
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="relative flex h-screen overflow-hidden">
       <LibraryRail
         docs={docs}
         activeId={activeId}
@@ -79,6 +101,16 @@ export default function Home() {
       ) : (
         <EmptyState loading={loading} error={error} />
       )}
+
+      <div className="pointer-events-none absolute bottom-5 right-5 z-20 flex flex-col items-end gap-3">
+        {pending ? (
+          <DuplicateNotice
+            doc={pending}
+            onResolve={handleResolve}
+            onDismiss={() => setPending(null)}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

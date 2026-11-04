@@ -12,6 +12,10 @@ export type DocumentSummary = {
   content_fingerprint: string;
   version_hint: string;
   duplicate_of: string | null;
+  duplicate_similarity: number;
+  duplicate_verdict: string;
+  duplicate_action: string;
+  duplicate_message: string;
 };
 
 export type Block = {
@@ -113,4 +117,34 @@ export async function uploadDocument(file: File): Promise<DocumentSummary> {
 
 export async function deleteDocument(docId: string): Promise<void> {
   await fetch(`/api/documents/${docId}`, { method: "DELETE" });
+}
+
+export type VersionDiff = {
+  old: { doc_id: string; label: string };
+  new: { doc_id: string; label: string };
+  similarity: number;
+  summary: string;
+  stats: Record<string, number[]>;
+  sections: {
+    title: string;
+    status: string;
+    similarity: number;
+    added_sentences: number;
+    removed_sentences: number;
+  }[];
+};
+
+export async function resolveDuplicate(
+  docId: string,
+  action: "keep_existing" | "replace" | "keep_both",
+): Promise<{ status: string }> {
+  return json<{ status: string }>(
+    await fetch(`/api/documents/${docId}/resolve?action=${action}`, { method: "POST" }),
+  );
+}
+
+export async function getDiff(oldId: string, newId: string): Promise<VersionDiff> {
+  return json<VersionDiff>(
+    await fetch(`/api/documents/${oldId}/diff/${newId}`, { cache: "no-store" }),
+  );
 }
