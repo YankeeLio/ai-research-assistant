@@ -34,7 +34,7 @@ try {
     }
   }
 
-  await wait(15000);
+  await wait(30000);
   await mkdir(outDir, { recursive: true });
   await page.screenshot({ path: path.join(outDir, "qa.png") });
   console.log("saved qa.png");

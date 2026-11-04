@@ -24,7 +24,9 @@ from .retrieval import DocumentIndex, get_embedder, tokenize
 
 logger = logging.getLogger(__name__)
 
-CITE_TAG_RE = re.compile(r"\[(c[0-9a-zA-Z]{4,16})\]")
+# 证据编号是 c1、c2 …（短编号，模型不易抄错），匹配放宽到 1-3 位数字。
+# 早期写成 c[0-9a-zA-Z]{4,16}，短编号永远匹配不上，导致引用校验形同虚设。
+CITE_TAG_RE = re.compile(r"\[(c\d{1,3})\]")
 
 SYSTEM_PROMPT = """你是严谨的学术文献阅读助手。你只能依据 <证据> 中的片段作答。
 
