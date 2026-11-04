@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from "react";
 
+import BilingualView from "@/components/BilingualView";
 import PdfReader from "@/components/PdfReader";
 import QaPanel from "@/components/QaPanel";
 import type { Block, ParsedDocument, Section } from "@/lib/api";
 
-type Tab = "reader" | "abstract" | "sections" | "references" | "tables";
+type Tab = "reader" | "bilingual" | "abstract" | "sections" | "references" | "tables";
 type Focus = { page: number; bbox: number[] } | null;
 
 export default function DocumentWorkspace({ parsed }: { parsed: ParsedDocument }) {
@@ -65,6 +66,7 @@ export default function DocumentWorkspace({ parsed }: { parsed: ParsedDocument }
           {(
             [
               ["reader", "阅读"],
+              ["bilingual", "对照"],
               ["abstract", "正文"],
               ["sections", `章节树 · ${stats?.heading_count ?? 0}`],
               ["references", `参考文献 · ${stats?.reference_count ?? 0}`],
@@ -90,13 +92,19 @@ export default function DocumentWorkspace({ parsed }: { parsed: ParsedDocument }
       <div className="flex min-h-0 flex-1">
         <main
           className={
-            tab === "reader"
+            tab === "reader" || tab === "bilingual"
               ? "min-h-0 flex-1 overflow-hidden"
               : "min-h-0 flex-1 overflow-y-auto bg-paper px-10 py-8"
           }
         >
           {tab === "reader" ? (
             <PdfReader docId={parsed.doc_id} anchors={parsed.cite_anchors} focus={focus} />
+          ) : null}
+          {tab === "bilingual" ? (
+            <BilingualView
+              docId={parsed.doc_id}
+              onJump={(page, bbox) => setFocus({ page, bbox })}
+            />
           ) : null}
           {tab === "abstract" ? <AbstractPanel parsed={parsed} onJump={jumpToBlock} /> : null}
           {tab === "sections" ? <SectionsPanel parsed={parsed} onJump={jumpToBlock} /> : null}

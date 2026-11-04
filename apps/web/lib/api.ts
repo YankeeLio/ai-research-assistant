@@ -148,3 +148,34 @@ export async function getDiff(oldId: string, newId: string): Promise<VersionDiff
     await fetch(`/api/documents/${oldId}/diff/${newId}`, { cache: "no-store" }),
   );
 }
+
+export type TranslationItem = {
+  block_id: string;
+  page: number;
+  bbox: number[];
+  source: string;
+  target: string;
+  citations: string[];
+};
+
+export type Translation = {
+  doc_id: string;
+  translator: string;
+  count: number;
+  items: TranslationItem[];
+};
+
+export async function getTranslation(docId: string): Promise<Translation | null> {
+  const res = await fetch(`/api/documents/${docId}/translation`, { cache: "no-store" });
+  if (res.status === 404) return null;
+  return json<Translation>(res);
+}
+
+export async function translateDocument(docId: string, force = false): Promise<Translation> {
+  await json<unknown>(
+    await fetch(`/api/documents/${docId}/translate?force=${force}`, { method: "POST" }),
+  );
+  const result = await getTranslation(docId);
+  if (!result) throw new Error("译文生成失败");
+  return result;
+}

@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     hf_offline: bool = False
     rerank_enabled: bool = True
 
+    # 翻译：auto 有 Key 走大模型，无 Key 走本地 MT
+    translation_backend: str = "auto"
+    translation_model: str = "Helsinki-NLP/opus-mt-en-zh"
+
     # 学术数据源
     arxiv_max_results: int = 50
     arxiv_request_delay: int = 3
