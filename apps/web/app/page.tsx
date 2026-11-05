@@ -119,7 +119,18 @@ export default function Home() {
       ) : view === "writing" ? (
         <WritingView />
       ) : parsed ? (
-        <DocumentWorkspace parsed={parsed} />
+        <DocumentWorkspace
+          parsed={parsed}
+          docs={docs}
+          onOpenDoc={(docId, page) => {
+            setView("doc");
+            setActiveId(docId);
+            // 等目标文档解析结果加载后再定位；这里用一次性延时避免额外的跨组件状态
+            window.setTimeout(() => {
+              window.dispatchEvent(new CustomEvent("sciloom:jump", { detail: { page } }));
+            }, 600);
+          }}
+        />
       ) : (
         <EmptyState loading={loading} error={error} />
       )}

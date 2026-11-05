@@ -109,6 +109,38 @@ export async function getParsed(docId: string): Promise<ParsedDocument> {
   return json<ParsedDocument>(await fetch(`/api/documents/${docId}/parsed`, { cache: "no-store" }));
 }
 
+export type CompareEvidence = {
+  chunk_id: string;
+  page: number;
+  section: string;
+  text: string;
+  score: number;
+  block_ids: string[];
+  doc_id: string;
+  title: string;
+};
+
+export type CompareResult = {
+  answer: string;
+  evidence: CompareEvidence[];
+  warnings: string[];
+  mode: string;
+  docs: { doc_id: string; title: string }[];
+};
+
+export async function compareDocuments(
+  docIds: string[],
+  question: string,
+): Promise<CompareResult> {
+  return json<CompareResult>(
+    await fetch("/api/qa/compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ doc_ids: docIds, question, per_doc: 4 }),
+    }),
+  );
+}
+
 export async function uploadDocument(file: File): Promise<DocumentSummary> {
   const form = new FormData();
   form.append("file", file);

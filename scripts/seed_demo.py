@@ -53,13 +53,22 @@ def main() -> None:
             print(f"  ok {doc['page_count']} 页{tag}")
 
         docs = client.get("/api/documents").json()
-        print(f"\n入库完成，共 {len(docs)} 篇。开始建索引（每篇 1-2 分钟）…")
+        print(f"\n入库完成，共 {len(docs)} 篇。开始建索引（每篇 5-20 秒）…")
+        skipped = 0
         for doc in docs:
+            # 541 页教材在 CPU 上建索引要跑几十分钟，会把其余文档全堵住；
+            # 它只用于演示"长文档解析"，不参与问答检索。
+            if doc["page_count"] > 200 and "--include-long" not in sys.argv:
+                skipped += 1
+                print(f"  {doc['title'][:40]:42s} 跳过（{doc['page_count']} 页超大文档）")
+                continue
             try:
                 r = client.post(f"/api/documents/{doc['doc_id']}/index")
                 print(f"  {doc['title'][:40]:42s} -> {r.json().get('chunks')} 块")
             except Exception as exc:  # noqa: BLE001
                 print(f"  {doc['title'][:40]:42s} 索引失败: {exc}")
+        if skipped:
+            print(f"（{skipped} 篇超大文档未建索引；需要时加 --include-long）")
 
         graph = client.get("/api/graph").json()
         print(f"\n图谱: {graph['stats']['nodes']} 节点 / {graph['stats']['edges']} 边")

@@ -46,6 +46,22 @@ class LLMClient:
             data = resp.json()
         return data["choices"][0]["message"]["content"]
 
+    def complete_sync(self, messages: list[dict[str, str]], model: str | None = None) -> str:
+        """同步版本，供在线程池里执行的服务调用（例如跨文献对比）。
+
+        异步客户端不能在线程里 await，硬用 asyncio.run 又会和已有事件循环冲突，
+        所以这里单独提供一个同步实现。
+        """
+        if not self.available:
+            raise LLMNotConfigured("未配置 LLM_API_KEY")
+        url = f"{self.settings.llm_base_url.rstrip('/')}/chat/completions"
+        headers = {"Authorization": f"Bearer {self.settings.llm_api_key}"}
+        with httpx.Client(timeout=120) as client:
+            resp = client.post(url, headers=headers, json=self._payload(messages, False, model))
+            resp.raise_for_status()
+            data = resp.json()
+        return data["choices"][0]["message"]["content"]
+
     async def stream(
         self, messages: list[dict[str, str]], model: str | None = None
     ) -> AsyncIterator[str]:

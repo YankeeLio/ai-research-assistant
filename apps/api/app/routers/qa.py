@@ -26,6 +26,18 @@ async def ask(req: AskRequest) -> dict:
     return await qa.answer(req.doc_id, req.question, top_k=req.top_k)
 
 
+class CompareRequest(BaseModel):
+    doc_ids: list[str] = Field(min_length=2, max_length=5)
+    question: str = Field(min_length=1, max_length=500)
+    per_doc: int = Field(default=4, ge=1, le=8)
+
+
+@router.post("/qa/compare")
+async def compare(req: CompareRequest) -> dict:
+    """跨文献对比：多篇各取证据，统一编号后由模型做维度化对比。"""
+    return await run_in_threadpool(qa.compare, req.doc_ids, req.question, req.per_doc)
+
+
 @router.get("/qa/stream")
 async def stream(
     doc_id: str = Query(...), q: str = Query(..., min_length=1, max_length=500), top_k: int = 8

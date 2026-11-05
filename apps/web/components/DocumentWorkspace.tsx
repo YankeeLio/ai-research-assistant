@@ -1,16 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import BilingualView from "@/components/BilingualView";
+import CompareView from "@/components/CompareView";
 import PdfReader from "@/components/PdfReader";
 import QaPanel from "@/components/QaPanel";
-import type { Block, ParsedDocument, Section } from "@/lib/api";
+import type { Block, DocumentSummary, ParsedDocument, Section } from "@/lib/api";
 
-type Tab = "reader" | "bilingual" | "abstract" | "sections" | "references" | "tables";
+type Tab = "reader" | "bilingual" | "compare" | "abstract" | "sections" | "references" | "tables";
 type Focus = { page: number; bbox: number[] } | null;
 
-export default function DocumentWorkspace({ parsed }: { parsed: ParsedDocument }) {
+export default function DocumentWorkspace({
+  parsed,
+  docs,
+  onOpenDoc,
+}: {
+  parsed: ParsedDocument;
+  docs: DocumentSummary[];
+  onOpenDoc: (docId: string, page: number) => void;
+}) {
   const [tab, setTab] = useState<Tab>("reader");
   const [focus, setFocus] = useState<Focus>(null);
   const [qaOpen, setQaOpen] = useState(true);
@@ -26,6 +35,19 @@ export default function DocumentWorkspace({ parsed }: { parsed: ParsedDocument }
     const block = blocksById.get(blockId);
     if (block) setFocus({ page: block.page, bbox: block.bbox });
   };
+
+  // 跨文档跳转：父组件切换文档后发一次事件，这里再定位到目标页
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ page?: number }>).detail;
+      if (typeof detail?.page === "number") {
+        setFocus({ page: detail.page, bbox: [0, 0, 12, 12] });
+        setTab("reader");
+      }
+    };
+    window.addEventListener("sciloom:jump", handler);
+    return () => window.removeEventListener("sciloom:jump", handler);
+  }, []);
 
   const jumpToRef = (refIndex: number) => {
     const anchor = parsed.cite_anchors.find((a) => a.ref_index === refIndex);
@@ -67,6 +89,7 @@ export default function DocumentWorkspace({ parsed }: { parsed: ParsedDocument }
             [
               ["reader", "阅读"],
               ["bilingual", "对照"],
+              ["compare", "跨文献对比"],
               ["abstract", "正文"],
               ["sections", `章节树 · ${stats?.heading_count ?? 0}`],
               ["references", `参考文献 · ${stats?.reference_count ?? 0}`],
@@ -92,13 +115,16 @@ export default function DocumentWorkspace({ parsed }: { parsed: ParsedDocument }
       <div className="flex min-h-0 flex-1">
         <main
           className={
-            tab === "reader" || tab === "bilingual"
+            tab === "reader" || tab === "bilingual" || tab === "compare"
               ? "min-h-0 flex-1 overflow-hidden"
               : "min-h-0 flex-1 overflow-y-auto bg-paper px-10 py-8"
           }
         >
           {tab === "reader" ? (
             <PdfReader docId={parsed.doc_id} anchors={parsed.cite_anchors} focus={focus} />
+          ) : null}
+          {tab === "compare" ? (
+            <CompareView docs={docs} currentId={parsed.doc_id} onOpenDoc={onOpenDoc} />
           ) : null}
           {tab === "bilingual" ? (
             <BilingualView

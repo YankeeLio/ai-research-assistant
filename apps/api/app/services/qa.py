@@ -47,6 +47,8 @@ class Evidence:
     text: str
     score: float
     block_ids: list[str] = field(default_factory=list)
+    doc_id: str = ""
+    title: str = ""
 
 
 def load_index(doc_id: str) -> DocumentIndex | None:
@@ -102,11 +104,14 @@ def ensure_index(doc_id: str) -> DocumentIndex | None:
     return build_index(doc_id, chunks)
 
 
-def _format_evidence(chunks: list[tuple[Chunk, float]]) -> tuple[str, list[Evidence]]:
+def _format_evidence(
+    chunks: list[tuple[Chunk, float]], doc_titles: dict[str, str] | None = None
+) -> tuple[str, list[Evidence]]:
     blocks: list[str] = []
     evidence: list[Evidence] = []
     for i, (chunk, score) in enumerate(chunks, start=1):
         tag = f"c{i}"  # 提示词里用短编号，避免模型抄错长哈希
+        title = (doc_titles or {}).get(chunk.doc_id, "")
         evidence.append(
             Evidence(
                 chunk_id=tag,
@@ -115,9 +120,14 @@ def _format_evidence(chunks: list[tuple[Chunk, float]]) -> tuple[str, list[Evide
                 text=chunk.text,
                 score=round(score, 4),
                 block_ids=chunk.block_ids,
+                doc_id=chunk.doc_id,
+                title=title,
             )
         )
-        blocks.append(f"[{tag}] (p.{chunk.page + 1} · {chunk.section_path or '正文'})\n{chunk.text}")
+        source = f"《{title[:40]}》" if title else ""
+        blocks.append(
+            f"[{tag}] {source}(p.{chunk.page + 1} · {chunk.section_path or '正文'})\n{chunk.text}"
+        )
     return "\n\n".join(blocks), evidence
 
 
@@ -256,3 +266,91 @@ async def stream_answer(doc_id: str, question: str, top_k: int = 8) -> AsyncIter
 
 def sse(payload: dict) -> str:
     return f"event: message\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+COMPARE_PROMPT = """你是严谨的学术文献对比助手。用户给出多篇论文，要求对比。
+
+规则：
+1. 只能依据 <证据> 作答，每条结论必须标注来源编号 [cN]；同一结论涉及多篇时并列标注，如 [c1][c5]。
+2. 优先按"维度"组织回答（例如结构、训练方式、数据规模、指标），而不是逐篇复述。
+3. 明确指出承袭关系与差异点；如果某篇论文的证据不足以支撑某个维度，直接写"该论文未提供相关信息"。
+4. 不得引入证据之外的知识；不得编造数值。
+5. 中文回答，模型名、指标名保留英文。
+"""
+
+
+def compare(doc_ids: list[str], question: str, per_doc: int = 4) -> dict:
+    """跨文献对比：每篇各取若干片段，统一编号后交给模型做维度化对比。"""
+    from ..core import db
+
+    titles: dict[str, str] = {}
+    merged: list[tuple[Chunk, float]] = []
+    missing: list[str] = []
+
+    for doc_id in doc_ids:
+        index = ensure_index(doc_id)
+        if index is None:
+            missing.append(doc_id)
+            continue
+        row = db.get_document(doc_id) or {}
+        titles[doc_id] = row.get("title") or row.get("file_name") or doc_id
+        merged.extend(index.search(question, top_k=per_doc))
+
+    if not merged:
+        return {
+            "answer": "",
+            "evidence": [],
+            "warnings": ["no_index: " + ",".join(missing)] if missing else ["no_hits"],
+            "mode": "none",
+            "docs": [],
+        }
+
+    context, evidence = _format_evidence(merged, titles)
+    client = LLMClient()
+    warnings: list[str] = []
+    if missing:
+        warnings.append("index_missing: " + ",".join(missing))
+
+    if not client.available:
+        lines = []
+        for ev in evidence:
+            lines.append(f"《{ev.title[:36]}》p.{ev.page + 1}：{ev.text[:160]}… [{ev.chunk_id}]")
+        return {
+            "answer": "（未配置模型，仅列出各篇的相关段落，便于人工比对）\n" + "\n\n".join(lines),
+            "evidence": [asdict(e) for e in evidence],
+            "warnings": warnings + ["llm_not_configured"],
+            "mode": "evidence-only",
+            "docs": [{"doc_id": d, "title": titles.get(d, d)} for d in doc_ids if d in titles],
+        }
+
+    messages = [
+        {"role": "system", "content": COMPARE_PROMPT},
+        {
+            "role": "user",
+            "content": f"<证据>\n{context}\n</证据>\n\n对比问题：{question}",
+        },
+    ]
+    try:
+        # 用 chat 模型而不是 reasoner：对比回答较长，reasoner 单次 30-60 s，
+        # 会被前端/反代的 30 s 超时掐断，表现为 500
+        raw = client.complete_sync(messages)
+        mode = "llm"
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("对比生成失败: %s", exc)
+        raw = "（模型调用失败，仅列出证据供人工比对）"
+        mode = "evidence-only"
+        warnings.append(f"llm_failed: {exc}")
+
+    cleaned, unknown = _validate(raw, evidence)
+    if unknown:
+        warnings.append(f"unknown_citations_removed: {','.join(unknown)}")
+    if mode == "llm" and not CITE_TAG_RE.search(cleaned):
+        warnings.append("ungrounded: 回答未绑定任何证据")
+
+    return {
+        "answer": cleaned,
+        "evidence": [asdict(e) for e in evidence],
+        "warnings": warnings,
+        "mode": mode,
+        "docs": [{"doc_id": d, "title": titles.get(d, d)} for d in doc_ids if d in titles],
+    }
