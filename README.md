@@ -1,140 +1,163 @@
 # SciLoom · 智研织机
 
-> **全国高校 AI 大模型挑战赛 · 智领科研·意图驱动**
+> 全国高校 AI 大模型挑战赛 · 智领科研·意图驱动
 > 基于大模型与 Agent 架构的全流程科研助手
 
-SciLoom 把一篇论文从"下载"到"写成综述"的全过程织成一条可追溯的链路：**解析 → 检索 → 问答溯源 → 对照阅读 → 图谱洞察 → 写作成图**。
+SciLoom 把一篇论文从"下载"到"写成综述"织成一条可追溯的链路：**解析 → 检索 → 问答溯源 → 对照阅读 → 图谱洞察 → 写作成图**。
 
-与"PDF + 聊天框"的产品不同，SciLoom 的每一个结论都必须能回到原文的页码与段落锚点；每一个"研究空白"都必须先被证明没有被后续论文填上。
+与"PDF + 聊天框"不同：每一个结论都能回到原文的页码与段落锚点；参考文献只能来自你真正读过的库内文献；没有大模型时它会明确告诉你"这是抽取式结果"，而不是假装生成。
 
----
-
-## 目录
-
-- [核心能力](#核心能力)
-- [技术架构](#技术架构)
-- [目录结构](#目录结构)
-- [快速开始](#快速开始)
-- [环境变量](#环境变量)
-- [评分项对照](#评分项对照)
-- [开发进度](#开发进度)
+![问答：流式输出 + 证据约束 + 引用芯片](assets/shots/qa.png)
 
 ---
 
-## 核心能力
+## 六大模块
 
-| 模块 | 能力 | 关键设计 |
+| 模块 | 已实现 | 关键设计 |
 |---|---|---|
-| ① 文献管理 | 批量上传、**基于正文语义**的版本去重、v1/v7 修订差异摘要 | 正文指纹（段落级 SimHash + 向量余弦）+ 章节对齐 diff，不依赖文件名 |
-| ② 多模态解析 | 扫描件 OCR、双栏还原、三级标题树、表格、公式、参考文献、附录 | PyMuPDF 文本层优先，扫描页回落 OCR；版面块按 x 坐标聚类还原阅读顺序 |
-| ③ 抗幻觉问答 | 单篇细粒度问答（超参、硬件、指标）+ 多篇演进对比 | 混合检索（BM25 + Dense）→ rerank → **强制引用**，答案节点绑定 `page/bbox/chunk_id` |
-| ④ 联动阅读 | 双栏/公式/表格原生渲染、标题树导航、`[11]` ↔ References 双向跳转 | Citation 锚点由解析阶段生成的 span 索引驱动，跳转无损 |
-| ⑤ 对照翻译 | 划词/悬停翻译、整篇双语、同步滚动 | 以**段落块 ID** 对齐，左右滚动按块映射，而非像素近似 |
-| ⑥ 检索推荐 | arXiv 自动抓取入库、引用含金量过滤、代码可复现性加权推荐 | 引用位置加权（Related Work 堆砌 vs 正文实质引用）区分"应付式引用" |
-| ⑦ 图谱洞察 | 局域引用网络、PageRank 基石节点、边缘衍生论文、自动综述 | 有向图 + PageRank/betweenness，孤立簇识别交叉领域 |
-| ⑧ 前沿探索 | Future Work 抽取、时间线对齐、**已解决 idea 过滤** | 后续论文的 Abstract/Conclusion 反查，命中即判定"已实现"并标注证据 |
-| ⑨ 写作 Copilot | 论文框架、真实无幻觉 References、TikZ/Graphviz/Mermaid 脚本 | References 只能来自库内条目，缺失即显式声明，禁止编造 |
-| ⑩ 数据可视化 | CSV → 学术图表 → 自动 Figure Caption | 图表类型按数据形状选择，Caption 从统计量生成并回填数值 |
+| ① 文献管理与解析 | 批量上传、语义去重、版本差异、标题树、表格、参考文献、扫描件 OCR | 段落级 8-gram shingle + SimHash 判定重复；行级重建还原双栏 |
+| ② 抗幻觉问答 | 混合检索、证据约束、引用白名单、拒答、SSE 流式 | 稠密召回 + 短名单内 BM25 重排；引用编号生成后硬校验 |
+| ③ 阅读与翻译 | PDF 渲染、锚点叠加、章节/引用/证据跳转、中英段落对照、同步滚动 | 解析坐标与渲染共用一套坐标系；按块索引对齐而非滚动比例 |
+| ④ 检索与推荐 | arXiv 检索、相关性重排、代码可复现性加权、一键下钻入库 | 0.65 库内相关性 + 0.20 开源代码 + 0.15 时效 |
+| ⑤ 图谱与综述 | 引用网络、PageRank 角色、结构化综述、Future Work 抽取 | 分位数划分基石/桥梁/衍生，综述由图谱统计生成 |
+| ⑥ 写作与可视化 | 无幻觉框架、CSV 学术图表与图注、TikZ/Mermaid/Graphviz | 引用越界剔除；量级差 20 倍自动拆子图 |
 
-## 技术架构
+### 界面一览
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Web (Next.js 14 + TS)                                      │
-│  PDF.js 阅读器 │ 双语对照 │ Cytoscape 图谱 │ 流式对话        │
-└───────────────┬─────────────────────────────────────────────┘
-                │ REST + SSE
-┌───────────────▼─────────────────────────────────────────────┐
-│  API (FastAPI)                                              │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │ Agent 层 (LangGraph 状态机)                            │  │
-│  │  plan → route → tool → reflect → answer   (trace 可见) │  │
-│  └───────────────────────────────────────────────────────┘  │
-│  ┌──────────┬──────────┬──────────┬──────────┬───────────┐  │
-│  │ 解析     │ 检索     │ 图谱     │ 执行沙箱 │ 外部 API  │  │
-│  │ PyMuPDF  │ BM25+    │ NetworkX │ Python   │ arXiv     │  │
-│  │ +OCR     │ Chroma   │ PageRank │ subprocess│ S2/Crossref│
-│  └──────────┴──────────┴──────────┴──────────┴───────────┘  │
-└───────────────┬─────────────────────────────────────────────┘
-                │
-        SQLite + 本地文件 + 向量索引
-```
+| | |
+|---|---|
+| ![引用图谱](assets/shots/graph.png) | ![中英对照](assets/shots/bilingual.png) |
+| 局域引用图谱与自动综述 | 中英段落对照与同步滚动 |
+| ![检索发现](assets/shots/search.png) | ![写作 Copilot](assets/shots/writing.png) |
+| arXiv 检索与个性化推荐 | 论文框架与库内引用 |
 
-**设计取舍**：单体后端 + 嵌入式向量库，牺牲水平扩展换取 7 天内的可运行性与低运维成本；Agent 层与工具层严格解耦，工具全部注册为 `Function Calling` schema，便于答辩时逐条演示。
+---
 
-## 目录结构
+## 技术栈
 
-```
-.
-├── apps/
-│   ├── api/                 # FastAPI 后端
-│   │   ├── app/
-│   │   │   ├── main.py
-│   │   │   ├── routers/     # documents / qa / graph / writing / viz
-│   │   │   ├── core/        # 配置、数据库、日志
-│   │   │   ├── services/    # parse / retrieve / dedupe / graph / llm
-│   │   │   └── agent/       # LangGraph 编排与工具注册
-│   │   └── pyproject.toml
-│   └── web/                 # Next.js 14 前端
-├── pdf/                     # 官方测试数据集
-├── docs/                    # 技术文档、架构图
-├── assets/                  # 演示素材
-├── scripts/                 # 数据准备、压测脚本
-├── .env.example
-└── README.md
-```
+| 层 | 选型 | 说明 |
+|---|---|---|
+| 前端 | Next.js 14 · TypeScript · Tailwind · PDF.js · Cytoscape | App Router + SSE 流式 |
+| 后端 | FastAPI · Python 3.11 | 解析、检索、OCR、翻译、图谱、写作 |
+| 模型 | DeepSeek-V3（生成）· BGE-M3（向量）· opus-mt-en-zh（离线翻译）· RapidOCR | 全部可降级 |
+| 存储 | SQLite + JSON 解析结果 + npz 向量 | 零运维，单机可复现 |
+
+---
 
 ## 快速开始
 
-> 详细步骤见 `docs/`；以下为最短路径。
-
 ```bash
-# 0. 准备测试数据（可选，约 25 MB）
-python scripts/fetch_data.py
-
 # 1. 后端
 cd apps/api
 python -m venv .venv
-.venv\Scripts\activate          # Windows；macOS/Linux 用 source .venv/bin/activate
+.venv\Scripts\activate                  # macOS/Linux: source .venv/bin/activate
 pip install -e ".[rag,graph,viz]"
 uvicorn app.main:app --reload --port 8000
 
 # 2. 前端
 cd apps/web
 npm install
-npm run dev                     # http://localhost:3000
+npm run dev                             # http://localhost:3000
+
+# 3. 准备演示数据（可选）
+python scripts/fetch_data.py            # 官方测试集
+python scripts/seed_demo.py             # 灌入 9 篇论文并建索引
 ```
 
-未配置 `LLM_API_KEY` 时问答自动回落为**抽取式模式**（从原文句子中挑答案并标注出处），
-链路可完整演示；配置后切换为模型生成，并保留同样的引用校验。
+Windows 下也可以用一键脚本：
+
+```powershell
+& .\scripts\start.ps1     # 启动后端 + 前端，日志在 docs/
+& .\scripts\stop.ps1      # 按端口停止
+```
+
+首次启动会加载 BGE-M3（约 15–20 秒）。没有配置 `LLM_API_KEY` 时，问答自动回落为**抽取式模式**、翻译回落为**本地 MT**、写作回落为**结构化模板**，界面上会明确标注。
+
+---
 
 ## 环境变量
 
-复制 `.env.example` 为 `.env` 并填写。**任何密钥都不得提交到仓库**。
+复制 `.env.example` 为 `.env`：
 
-## 评分项对照
+```ini
+LLM_BASE_URL=https://api.deepseek.com/v1
+LLM_API_KEY=sk-***            # 留空则降级为抽取式
+LLM_MODEL=deepseek-chat
 
-| 评分维度 | 权重 | 本项目落点 |
+EMBEDDING_BACKEND=local
+EMBEDDING_MODEL=BAAI/bge-m3
+HF_ENDPOINT=https://hf-mirror.com
+HF_OFFLINE=false              # 模型缓存后可置 true
+
+CHUNK_SIZE=800
+CHUNK_OVERLAP=120
+TRANSLATION_BACKEND=auto      # auto | llm | local
+```
+
+> 密钥只存在于 `.env`（已被 `.gitignore` 排除）；仓库内只有 `.env.example` 模板。
+
+---
+
+## 实测数据
+
+| 指标 | 结果 | 复现脚本 |
 |---|---|---|
-| Agent 与大模型技术深度 | 35% | LangGraph 状态机 + 工具注册 + 混合检索 + span 级溯源 + Guardrails |
-| 科研场景创新性 | 25% | 正文指纹去重与版本 diff、"已解决 idea"过滤、块级双语对齐 |
-| 全栈工程质量 | 10% | 前后端解耦、SSE 流式、长文档虚拟渲染 |
-| 科研实用性与闭环 | 10% | 六大模块全通 + 三大官方用例 |
-| UI/UX | 10% | 联动阅读、图谱交互、Agent 思考可视化 |
-| 学术价值 | 10% | 可复现部署、工具层可扩展 |
+| 541 页教材解析 | 29.3 s，峰值内存 24.3 MB | `scripts/parse_probe.py` |
+| 15 页论文解析 | 6–8 s，40 条参考文献、76 个字符级锚点 | 同上 |
+| 扫描件 OCR | 15 页纯图片解析出 7 章、36 条参考文献 | 同上 |
+| 检索命中 @3 | 6/6（含中文提问） | `scripts/eval_retrieval.py` |
+| 版本去重 | v1 vs v7：`same_work`，相似度 0.905 | `scripts/dedupe_test.py` |
+| 引用图谱 | 33 节点 / 52 边 / 16 条库内互引 | `scripts/graph_probe.py` |
 
-## 开发进度
+---
 
-见 `docs/PROGRESS.md`。
+## 目录结构
 
-## 团队
+```
+.
+├── apps/
+│   ├── api/            # FastAPI：core / models / routers / services
+│   └── web/            # Next.js：app / components / lib
+├── pdf/                # 官方测试集（不入库）
+├── scripts/            # 取数、评测、探针、启停
+├── deploy/             # nginx 配置
+├── docs/               # 技术文档、部署手册、视频脚本
+└── docker-compose.yml
+```
 
-- 参赛者：（待填写）
-- 组别：**B 组**（普通本科院校本科生组，已报名并缴费）
-- 赛项：全国高校 AI 大模型挑战赛 · 智领科研·意图驱动
-- 省赛提交截止：2026-11-18
+---
 
 ## 部署
 
-见 [`docs/DEPLOY.md`](docs/DEPLOY.md)：Docker Compose 一键部署、评审账号创建、常见故障排查。
+见 [`docs/DEPLOY.md`](docs/DEPLOY.md)。三容器（api / web / nginx），模型与数据挂卷，SSE 关闭缓冲。
 
+```bash
+docker compose build && docker compose up -d
+python scripts/seed_demo.py http://<公网IP>
+```
+
+---
+
+## 已知局限
+
+- **划词翻译**未实现：当前是段落级对照，选中句子即时翻译还在规划中。
+- **多篇联合对比**没有专门入口：可分别对单篇提问，但"跨文献一篇式对比"需要手动切换。
+- **Future Work 的"已解决 idea 过滤"**只做到抽取与展示，尚未做后续论文反查。
+- **OCR 速度**约 7 s/页（CPU），整本扫描书需后台队列。
+- **公式**仅按字体启发式识别，未还原 LaTeX。
+- 单用户单库，尚无账号体系。
+
+---
+
+## 团队
+
+- 参赛者：（填写姓名）
+- 组别：**B 组**（普通本科院校本科生组，已报名并缴费）
+- 省赛提交截止：2026-11-18
+
+## 文档
+
+- 技术文档（PDF，20 页）：[`docs/SciLoom-技术文档.pdf`](docs/SciLoom-技术文档.pdf)
+- 部署手册：[`docs/DEPLOY.md`](docs/DEPLOY.md)
+- 演示视频脚本：[`docs/VIDEO_SCRIPT.md`](docs/VIDEO_SCRIPT.md)
+- 开发进度：[`docs/PROGRESS.md`](docs/PROGRESS.md)
