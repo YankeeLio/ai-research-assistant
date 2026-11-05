@@ -36,6 +36,9 @@ logger = logging.getLogger(__name__)
 
 CITE_RE = re.compile(r"\[(\d{1,3}(?:\s*[,，\-–]\s*\d{1,3})*)\]")
 REF_START_RE = re.compile(r"^\s*\[(\d{1,3})\]\s*")
+# 字母键式参考文献：GPT-3 用的是 [ADG+16] 这种作者缩写+年份，不含纯数字编号
+REF_KEY_RE = re.compile(r"^\s*\[([A-Za-z][A-Za-z0-9+\-]{0,15})\]\s+")
+CITE_KEY_RE = re.compile(r"\[([A-Za-z][A-Za-z0-9+\-]{0,15})\]")
 # "1 Introduction" / "3.2.1Scaled Dot-Product Attention"（LaTeX 抽取常丢空格）
 NUM_HEADING_RE = re.compile(r"^(\d{1,2}(?:\.\d{1,2}){0,2})\.?\s*([A-Z][A-Za-z].{0,90})$")
 MATH_FONT_HINTS = ("CMMI", "CMSY", "CMEX", "MSBM", "Symbol", "MTMI", "MTSY", "EUEX", "MTEX")
@@ -43,6 +46,19 @@ CAPTION_RE = re.compile(r"^(figure|table|fig\.|algorithm)\s*\d+", re.I)
 ARXIV_STAMP_RE = re.compile(r"^arxiv:\s*\d{4}\.\d{4,5}", re.I)
 DATE_ONLY_RE = re.compile(r"^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{4}$", re.I)
 YEAR_IN_TEXT_RE = re.compile(r"\b(?:19|20)\d{2}\b")
+
+
+def _key_looks_like_citation(key: str) -> bool:
+    """判断 `[ADG+16]` 这类方括号内容是不是参考文献键。
+
+    判据：首字符是字母、长度 2-16、至少含一位数字。
+    `[Table]`、`[C]`、`[TODO]` 这类会被排除，避免把正文里的普通方括号当成引用。
+    """
+    if not key or not key[0].isalpha():
+        return False
+    if not 2 <= len(key) <= 16:
+        return False
+    return any(ch.isdigit() for ch in key)
 
 
 def _looks_like_reference(text: str) -> bool:
@@ -503,13 +519,16 @@ class PdfParser:
         return -1
 
     def _parse_references(self, blocks: list[_RawBlock], start: int) -> list[Reference]:
-        """参考文献解析：同时支持两种排版。
+        """参考文献解析：同时支持三种排版。
 
-        - 数字式：`[12] Author. Title.` 或 `12. Author. Title.`（NeurIPS/IEEE 常见）
-        - 作者-年份式：`Alan Akbik, Duncan Blythe, and Roland Vollgraf. 2018. Title.`
-          （ACL/NAACL 常见，**没有任何编号**，只按编号匹配会一篇都解析不出来）
+        - 数字式：`[12] Author. Title.`（NeurIPS/IEEE 常见）
+        - 字母键式：`[ADG+16] Marcin Andrychowicz...`（GPT-3 这种大团队论文常用）
+        - 作者-年份式：`Alan Akbik, ... 2018. Title.`（ACL/NAACL 常见，完全没有编号）
+
+        三种都不支持的话，参考文献数会是 0，引用图谱与引用跳转随之全部失效。
         """
         self._ref_blocks: list[_RawBlock] = []
+        self._ref_keys: dict[str, int] = {}
         if start < 0:
             return []
 
@@ -528,7 +547,19 @@ class PdfParser:
                 index = int(m.group(1))
                 auto_index = max(auto_index, index)
                 current = (index, b, [REF_START_RE.sub("", b.text)])
-            elif _looks_like_reference(b.text):
+                continue
+
+            km = REF_KEY_RE.match(b.text)
+            if km and _key_looks_like_citation(km.group(1)):
+                if current:
+                    refs.append(self._make_reference(*current))
+                    self._ref_blocks.append(current[1])
+                auto_index += 1
+                self._ref_keys[km.group(1).lower()] = auto_index
+                current = (auto_index, b, [REF_KEY_RE.sub("", b.text)])
+                continue
+
+            if _looks_like_reference(b.text):
                 if current:
                     refs.append(self._make_reference(*current))
                     self._ref_blocks.append(current[1])
@@ -560,6 +591,7 @@ class PdfParser:
     def _extract_cite_anchors(self, blocks: list[_RawBlock], ref_start: int) -> list[CiteAnchor]:
         self._cite_blocks: list[_RawBlock] = []
         anchors: list[CiteAnchor] = []
+        key_map = getattr(self, "_ref_keys", {})
         for i, b in enumerate(blocks):
             if 0 <= ref_start <= i:
                 continue
@@ -574,6 +606,23 @@ class PdfParser:
                             block_id="",
                             bbox=[round(v, 2) for v in b.bbox],
                             raw=m.group(0),
+                        )
+                    )
+                    self._cite_blocks.append(b)
+
+            # 字母键式引用：先查参考文献里登记过的键，查不到就不是引用
+            if key_map:
+                for km in CITE_KEY_RE.finditer(b.text):
+                    ref_index = key_map.get(km.group(1).lower())
+                    if ref_index is None:
+                        continue
+                    anchors.append(
+                        CiteAnchor(
+                            ref_index=ref_index,
+                            page=b.page,
+                            block_id="",
+                            bbox=[round(v, 2) for v in b.bbox],
+                            raw=km.group(0),
                         )
                     )
                     self._cite_blocks.append(b)
