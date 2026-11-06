@@ -85,11 +85,25 @@ python scripts/graph_probe.py                        # 图谱与综述
 python scripts/writing_probe.py                      # 图表与框架
 ```
 
+### 自助验收（推荐先跑这个）
+
+```bash
+# 对着本地跑
+python scripts/reviewer_walkthrough.py
+
+# 或者对着线上演示地址跑
+python scripts/reviewer_walkthrough.py http://<服务器IP>
+```
+
+脚本会按本指南的顺序把 13 项能力逐一调用，输出 `PASS/FAIL` 与耗时，
+任何一步返回 4xx/5xx 或关键字段缺失都会标红。当前基线：**13/13 通过**。
+
 ## 常见问题
 
 | 现象 | 说明 |
 |---|---|
-| 首次提问等 20 秒 | BGE-M3 首次加载；之后正常 |
+| 首次提问等 20-40 秒 | BGE-M3 首次加载 + 首次建索引；之后稳定在 3 秒左右 |
 | 回答开头写"抽取式回答" | 未配置 `LLM_API_KEY`，属预期降级 |
 | 图谱节点很少 | 库内文献太少；建议先 `python scripts/seed_demo.py` |
 | 译文质量一般 | 未配置 Key 时走本地 MT，属预期降级 |
+| arXiv 检索偶发 502 | 官方接口限流，已内置退避重试；稍等再试 |

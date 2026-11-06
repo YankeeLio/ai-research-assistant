@@ -106,7 +106,8 @@ def build_outline(idea: str, docs: list[ParsedDocument], top_k: int = 5) -> dict
         "请据此写出论文框架（Abstract / Introduction / Related Work），不超过 800 字。"
     )
     try:
-        text = client.complete(
+        # 同步版本：这个服务在线程池里跑，没有事件循环可 await
+        text = client.complete_sync(
             [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
