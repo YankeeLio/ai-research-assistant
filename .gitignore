@@ -40,3 +40,6 @@ pdf/**/*.pdf
 Thumbs.db
 .vscode/
 .idea/
+
+# --- 视频录制中间产物 ---
+assets/video/frames-*/

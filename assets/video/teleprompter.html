@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>SciLoom 演示视频 · 提词器</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0E1014; color: #EDEAE1; font-family: "Microsoft YaHei", sans-serif; height: 100vh; overflow: hidden; }
+  #bar { position: fixed; top: 0; left: 0; right: 0; height: 56px; background: #171A20; border-bottom: 1px solid #2A2E36;
+         display: flex; align-items: center; gap: 14px; padding: 0 20px; z-index: 10; font-size: 14px; }
+  #bar b { color: #8FB3C4; font-family: Consolas, monospace; letter-spacing: 1px; }
+  #bar button { background: #23272F; color: #EDEAE1; border: 1px solid #353A44; padding: 6px 12px;
+                border-radius: 4px; cursor: pointer; font-size: 13px; }
+  #bar button:hover { border-color: #8FB3C4; }
+  #bar input[type=range] { width: 160px; }
+  #clock { font-family: Consolas, monospace; color: #A63C2A; font-size: 15px; }
+  #stage { position: absolute; top: 56px; bottom: 0; left: 0; right: 0; overflow: hidden; }
+  #text { padding: 18vh 12vw 60vh; font-size: 34px; line-height: 2.05; letter-spacing: 0.5px; }
+  .scene { margin-bottom: 68px; }
+  .scene .no { display: block; font-family: Consolas, monospace; font-size: 17px; color: #7C8A93; margin-bottom: 10px; }
+  .scene p { color: #EDEAE1; }
+  .scene.cur p { color: #FFFFFF; }
+  .hint { position: fixed; right: 22px; bottom: 16px; font-family: Consolas, monospace; font-size: 12px; color: #5A616B; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <b>SciLoom 提词器</b>
+  <button id="toggle">开始滚动（空格）</button>
+  <label style="display:flex;align-items:center;gap:8px;color:#8C939D">速度
+    <input id="speed" type="range" min="6" max="60" value="18" />
+  </label>
+  <button id="reset">回到开头</button>
+  <span id="clock">00:00 / 06:30</span>
+  <span style="margin-left:auto;color:#5A616B">← → 调速度 · 空格 暂停/继续</span>
+</div>
+
+<div id="stage"><div id="text">
+
+<div class="scene"><span class="no">镜 1 · 0:00–0:50 · 文献台</span>
+<p>科研里最耗时间的不是读论文，而是找论文、核对细节、以及确认自己没记错。</p>
+<p>通用聊天机器人能聊，但它会流畅地编造超参数和参考文献——而科研对幻觉是零容忍的。</p>
+<p>SciLoom 要解决的就是这件事：把一篇论文从下载到写成综述，织成一条每一步都能回到原文的链路。</p>
+</div>
+
+<div class="scene"><span class="no">镜 2 · 0:50–1:55 · 语义去重</span>
+<p>先看文献管理。系统基于正文内容做语义去重，不看文件名。</p>
+<p>我先入库第七版，再入库第一版——右下角立刻弹出预警：判定为同一工作的不同版本，正文重合度 90.5%，并建议保留库中更新的 v7。</p>
+<p>点开修订差异，它按章节对齐，告诉我结论部分改动最大，参考文献从 36 条增加到 40 条。</p>
+</div>
+
+<div class="scene"><span class="no">镜 3 · 1:55–2:45 · 细粒度解析</span>
+<p>解析不是简单抽文本。标题树由字号、编号和位置共同判定，表格结构化还原，公式单独标记。</p>
+<p>更关键的是扫描件：这篇 PDF 没有文本层，系统走 OCR 识别，再把像素坐标按比例反算回 PDF 坐标——所以扫描件和原生 PDF 在上层看来是同一种东西。</p>
+</div>
+
+<div class="scene"><span class="no">镜 4 · 2:45–3:55 · 抗幻觉问答</span>
+<p>这是抗幻觉问答。回答是流式吐出来的，每一句后面都有引用编号，点一下就跳到原文那一页——因为解析阶段就存了字符级坐标。</p>
+<p>注意第二个问题的答案：它直接说"现有材料不足以回答"，只说明型号是 V100，没给数量。它没有编，这正是我们要的。</p>
+</div>
+
+<div class="scene"><span class="no">镜 5 · 3:55–4:35 · 跨文献对比</span>
+<p>勾选 BERT 和原始 Transformer，它会分别检索两篇的证据，统一编号后按维度组织对比：架构来源、实现一致性、基本构件、注意力方向。</p>
+<p>每条结论后面都标注了来自哪一篇的哪一页，多文推理同样可追溯。</p>
+</div>
+
+<div class="scene"><span class="no">镜 6 · 4:35–5:05 · 对照与划词翻译</span>
+<p>中文读者可以直接进入对照模式。公式和参考文献不翻译，引用编号原样保留。</p>
+<p>两侧同步不是按滚动比例，而是按段落对齐——行高不一样，比例同步会越读越偏。</p>
+<p>读到难句，直接划选，译文气泡立刻出来。</p>
+</div>
+
+<div class="scene"><span class="no">镜 7 · 5:05–5:50 · 引用图谱</span>
+<p>把库里十篇论文放在一起，系统会连出引用网络，用 PageRank 和中介中心性划分角色：Adam、Attention、Layer Normalization 是基石，RoBERTa 是衍生工作。</p>
+<p>右侧这段综述不是模型编的，是从图的结构翻译出来的——谁被引几次、时间跨度、有没有环，都能对上。</p>
+</div>
+
+<div class="scene"><span class="no">镜 8 · 5:50–6:20 · 检索发现</span>
+<p>检索结果不是照搬 arXiv 排序，而是按"与本地库的相关性、有没有开源代码、时效"重排，并给出理由。</p>
+<p>看到合适的，一键下钻：下载、解析、去重、入库、建索引，全自动。</p>
+</div>
+
+<div class="scene"><span class="no">镜 9 · 6:20–6:55 · 写作 Copilot</span>
+<p>写作环节同样有约束：参考文献只能从库内取，编号越界会被剔除。</p>
+<p>数据图表会根据数据形状自动选图——这里 BLEU 和参数量差了两个数量级，它自动拆成上下两个子图，并在图注里写明原因。</p>
+</div>
+
+<div class="scene"><span class="no">镜 10 · 6:55–7:30 · 技术亮点与收尾</span>
+<p>技术上最值得说的是三个坑：空格会被单独输出成文本片段，早期实现把它当噪声过滤，整句粘成一坨，检索命中率从 5/6 掉到 2/6；</p>
+<p>BM25 与向量平行融合在跨语言下反而更差，改成"稠密召回加短名单重排"后回到 6/6；</p>
+<p>引用校验正则要求四位编号，而证据编号是 c1，这道防线从上线起就没生效过。</p>
+<p>SciLoom 不是把 AI 塞进阅读器，而是把"可追溯"做成了产品结构。谢谢观看。</p>
+</div>
+
+</div></div>
+<div class="hint">目标时长 6:30 · 脚本见 docs/VIDEO_SCRIPT.md</div>
+
+<script>
+  const stage = document.getElementById("stage");
+  const speed = document.getElementById("speed");
+  const clock = document.getElementById("clock");
+  const toggle = document.getElementById("toggle");
+  let playing = false, last = 0, elapsed = 0;
+
+  function tick(t) {
+    if (!last) last = t;
+    const dt = (t - last) / 1000;
+    last = t;
+    if (playing) {
+      stage.scrollTop += parseFloat(speed.value) * dt;
+      elapsed += dt;
+    }
+    const m = String(Math.floor(elapsed / 60)).padStart(2, "0");
+    const s = String(Math.floor(elapsed % 60)).padStart(2, "0");
+    clock.textContent = `${m}:${s} / 06:30`;
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  function setPlaying(v) {
+    playing = v;
+    toggle.textContent = v ? "暂停（空格）" : "开始滚动（空格）";
+  }
+  toggle.onclick = () => setPlaying(!playing);
+
+  document.addEventListener("keydown", (e) => {
+    if (e.code === "Space") { e.preventDefault(); setPlaying(!playing); }
+    if (e.key === "ArrowRight") speed.value = Math.min(60, +speed.value + 3);
+    if (e.key === "ArrowLeft") speed.value = Math.max(6, +speed.value - 3);
+  });
+
+  document.getElementById("reset").onclick = () => {
+    stage.scrollTop = 0; elapsed = 0; setPlaying(false);
+  };
+
+  // 高亮当前段落所在场景
+  const scenes = [...document.querySelectorAll(".scene")];
+  stage.addEventListener("scroll", () => {
+    const mid = stage.scrollTop + stage.clientHeight * 0.35;
+    let cur = 0;
+    scenes.forEach((el, i) => { if (el.offsetTop <= mid) cur = i; });
+    scenes.forEach((el, i) => el.classList.toggle("cur", i === cur));
+  });
+</script>
+</body>
+</html>

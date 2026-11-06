@@ -41,9 +41,26 @@
 
 ## 四、录制清单（逐条打勾）
 
-- [ ] 服务已启动，模型已预热（问一次问题再开录）
+- [ ] 服务已启动，`python scripts/wait_ready.py` 通过（模型与索引都热了）
 - [ ] 库内有 v7、v1、扫描件、GPT-3 等 9 篇，索引已建
-- [ ] `docs/samples/model_bleu.csv` 准备好，用于图表演示
+- [ ] `scripts/samples/model_bleu.csv` 准备好，用于图表演示
 - [ ] 通知已关闭、浏览器全屏、无个人隐私标签页
 - [ ] 每镜单独录，失败只重录该镜
 - [ ] 录完检查：旁白与画面对得上、没有长时间空等
+
+## 五、提词器与素材
+
+**提词器**：浏览器打开 [`assets/video/teleprompter.html`](../assets/video/teleprompter.html)，
+全屏后按空格开始滚动，`←` `→` 调速。字号按 1080p 调过，放副屏或手机照着念就行。
+
+**片头 / 片尾卡**（1920×1080，直接拖进剪辑软件）：
+
+- `assets/video/title-card.png`
+- `assets/video/end-card.png`
+
+**录屏流水线（可选）**：`apps/web/scripts/record-sample.mjs` 用 CDP 截屏流 + ffmpeg
+把真实操作录成 1080p MP4（产物 `assets/video/sample.mp4`，9.5 秒）。不想手动录屏的，
+可以把分镜翻译成该脚本的动作序列自动生成画面轨，再用提词器配音。
+
+> 注意：CDP 截屏流只在画面变化时出帧，静止画面靠持有上一帧补齐，
+> 滚动、打字这类连续动作会比实时录制略顿。正式录制仍建议用 OBS 实时录。
