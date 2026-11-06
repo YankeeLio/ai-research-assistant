@@ -41,5 +41,9 @@ Thumbs.db
 .vscode/
 .idea/
 
-# --- 视频录制中间产物 ---
+# --- 视频录制中间产物与成片（体积大，走官网单独提交）---
 assets/video/frames-*/
+assets/video/*.mp4
+assets/video/preview-*.png
+assets/video/*sheet*.png
+assets/video/sample.mp4
