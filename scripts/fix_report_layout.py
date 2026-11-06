@@ -10,7 +10,14 @@ import re
 from pathlib import Path
 
 REPORT = Path(__file__).resolve().parents[1] / "docs" / "report" / "report.html"
-FLOW_SECTIONS = ("2　需求分析", "3　系统架构设计", "9　局限与展望")
+FLOW_SECTIONS = (
+    "2　需求分析",
+    "3　系统架构设计",
+    "6　测试与评测",
+    "7　创新点说明",
+    "8　部署与工程实践",
+    "9　局限与展望",
+)
 
 
 def main() -> None:

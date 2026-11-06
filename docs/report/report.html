@@ -31,9 +31,9 @@
   table{ width:100%; border-collapse:collapse; margin:6pt 0 9pt; font-size:9.3pt; }
   th{ background:#EDEAE1; text-align:left; font-family:"Microsoft YaHei",sans-serif; font-weight:600; }
   th,td{ border:0.6pt solid var(--haze); padding:3.5pt 5pt; vertical-align:top; }
-  .cap{ font-size:8.8pt; color:#6f6a5c; text-align:center; margin:3pt 0 10pt; }
-  figure{ margin:8pt 0 4pt; text-align:center; page-break-inside:avoid; }
-  figure img{ width:88%; max-width:100%; border:0.6pt solid var(--haze); }
+  .cap{ margin:2pt 0 8pt; font-size:8.6pt; color:#6f6a5c; text-align:center; margin:3pt 0 10pt; }
+  figure{ margin:6pt 0 2pt; text-align:center; page-break-inside:avoid; }
+  figure img{ width:64%; max-width:100%; border:0.6pt solid var(--haze); }
   .cover{ height:250mm; display:flex; flex-direction:column; justify-content:center; page-break-after:always; }
   .cover .eyebrow{ font-family:Consolas,monospace; font-size:9pt; letter-spacing:2pt; color:var(--blueprint); text-transform:uppercase; }
   .cover h1{ font-size:30pt; margin:10pt 0 4pt; }
@@ -290,6 +290,7 @@
 <h3>4.6 翻译：三级降级与块级对齐</h3>
 <p>翻译后端按可用性自动选择：<strong>LLM（有 Key）→ 本地 opus-mt-en-zh（离线）→ 直通并标注未翻译</strong>。本地 MT 有明显系统性误译（"Transformer"→"变异器"、"attention"→"关注"），因此加了一层术语表后处理，129 段中修正 26 段；但这仍明显弱于大模型，文档中如实说明。</p>
 <p>只翻译真正的正文段落（跳过作者行、邮箱串），175 段噪声降到 129 段，耗时从 434 秒降到 168 秒。对照阅读<strong>按块索引同步</strong>而不是按滚动比例：两侧行高差异大，比例同步会越读越偏。</p>
+<p>除整篇对照外，阅读器还支持<strong>划词翻译</strong>：用 PDF.js 的 TextLayer 让 PDF 像网页一样可选中文字，鼠标松开即把选区送去翻译，1–2 秒返回气泡。同一句重复划选直接命中进程内缓存。切换页面时会重建文本层，避免上一页的选中区残留。</p>
 
 <h3>4.7 引用图谱：从网络图到可解释的角色</h3>
 <p>边方向是"引用者 → 被引者"，因此入度与 PageRank 才代表"基石程度"。角色划分用<strong>分位数</strong>而非绝对阈值（不同规模的库，入度 2 与入度 20 意义完全不同）：</p>
@@ -311,39 +312,41 @@
 
 <h3>5.1 文献台与 PDF 阅读器</h3>
 <figure><img src="assets/reader-anchors.png" alt="阅读器" /></figure>
-<p class="cap">图 5-1　PDF 渲染与引用锚点叠加：红色方块即解析阶段产出的字符级 bbox</p>
+<p class="cap">图 5-3　PDF 渲染与引用锚点叠加：红色方块即解析阶段产出的字符级 bbox</p>
 <p>阅读器用 PDF.js 把页面画到 Canvas，再把解析出的 bbox 乘以同一个 scale 叠成绝对定位的方块。因为解析与渲染共用 PDF 用户坐标系，锚点不需要二次 OCR 或猜测。参考文献列表点击 <span class="mono">[12]</span> 即跳到正文对应位置并高亮；章节树、正文段落、问答证据同样可跳转。</p>
 
 <h3>5.2 问答：流式 + 证据面板</h3>
 <figure><img src="assets/qa.png" alt="问答面板" /></figure>
-<p class="cap">图 5-2　流式回答、可点击引用芯片与证据列表；证据不足时明确拒答</p>
+<p class="cap">图 5-4　流式回答、可点击引用芯片与证据列表；证据不足时明确拒答</p>
 
 <h3>5.3 中英对照与同步滚动</h3>
 <figure><img src="assets/bilingual.png" alt="对照翻译" /></figure>
-<p class="cap">图 5-3　左英文右中文，按块索引同步；点击任一侧跳回 PDF 坐标</p>
+<p class="cap">图 5-5　左英文右中文，按块索引同步；点击任一侧跳回 PDF 坐标</p>
+<figure><img src="assets/selection.png" alt="划词翻译" /></figure>
+<p class="cap">图 5-6　划词翻译：选中一句，气泡即时给出译文，引用编号与专有名词原样保留</p>
 
 <h3>5.4 局域引用图谱与自动综述</h3>
 <figure><img src="assets/graph.png" alt="引用图谱" /></figure>
-<p class="cap">图 5-4　33 节点 / 52 边；红色为基石论文，右侧为图谱统计生成的综述与待探索方向</p>
+<p class="cap">图 5-7　33 节点 / 52 边；红色为基石论文，右侧为图谱统计生成的综述与待探索方向</p>
 
 <h3>5.5 检索发现</h3>
 <figure><img src="assets/search.png" alt="检索发现" /></figure>
-<p class="cap">图 5-5　按"库内相关性 + 开源代码 + 时效"重排，支持一键下钻入库</p>
+<p class="cap">图 5-8　按"库内相关性 + 开源代码 + 时效"重排，支持一键下钻入库</p>
 
 <h3>5.6 写作 Copilot</h3>
 <figure><img src="assets/writing.png" alt="写作" /></figure>
-<p class="cap">图 5-6　框架生成：右侧列出被引用的库内文献，编号与正文一一对应</p>
+<p class="cap">图 5-9　框架生成：右侧列出被引用的库内文献，编号与正文一一对应</p>
 <figure><img src="assets/chart_sample.png" alt="CSV 图表" /></figure>
-<p class="cap">图 5-7　CSV → 学术图表：BLEU 与参数量量级相差 20 倍，自动拆成上下两个子图</p>
+<p class="cap">图 5-10　CSV → 学术图表：BLEU 与参数量量级相差 20 倍，自动拆成上下两个子图</p>
 
 <h3>5.7 跨文献对比</h3>
 <figure><img src="assets/compare.png" alt="跨文献对比" /></figure>
-<p class="cap">图 5-8　BERT 与原始 Transformer 的承袭与差异：按维度组织，引用可逐条跳回原文</p>
+<p class="cap">图 5-11　BERT 与原始 Transformer 的承袭与差异：按维度组织，引用可逐条跳回原文</p>
 <p>对比模式允许勾选 2–5 篇论文：系统分别检索各自证据、统一编号后交给模型，要求按"架构来源 / 实现一致性 / 基本构件 / 注意力方向"等维度组织答案，而不是逐篇复述。右侧按文档分组列出证据，点击任一条可跳到对应论文的对应页——这使"跨文献推理"同样具备可追溯性。</p>
 <p>实践中发现一个细节：模型倾向于用表格呈现对比，而最初的 Markdown 渲染器只支持标题与列表，表格会退化成一行行竖线。补上表格解析后，对比结果才真正可读。</p>
 
 <!-- ============ 6 测试与评测 ============ -->
-<h2 class="newpage">6　测试与评测</h2>
+<h2>6　测试与评测</h2>
 
 <h3>6.1 官方测试用例</h3>
 <table>
@@ -375,7 +378,7 @@ parsed  : page_count=15 block_count=259 heading_count=39
 sections: ['1 Introduction', '2 Background', … '7 Conclusion']</pre>
 
 <!-- ============ 7 创新点 ============ -->
-<h2 class="newpage">7　创新点说明</h2>
+<h2>7　创新点说明</h2>
 
 <h3>7.1 技术创新点</h3>
 <table>
@@ -396,7 +399,7 @@ sections: ['1 Introduction', '2 Background', … '7 Conclusion']</pre>
 </ul>
 
 <!-- ============ 8 部署 ============ -->
-<h2 class="newpage">8　部署与工程实践</h2>
+<h2>8　部署与工程实践</h2>
 
 <h3>8.1 容器编排</h3>
 <p>三个容器：<span class="mono">api</span>（解析/检索/OCR/翻译/图谱）、<span class="mono">web</span>（Next standalone）、<span class="mono">nginx</span>（反向代理）。模型与数据挂卷，容器重建不丢；SSE 在 nginx 层关闭缓冲，否则 token 会攒到最后一次性吐出。</p>

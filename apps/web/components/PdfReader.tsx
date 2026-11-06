@@ -18,6 +18,7 @@ type Selection = {
   text: string;
   x: number;
   y: number;
+  flip: boolean;
   loading: boolean;
   target: string;
   mode: string;
@@ -176,9 +177,29 @@ export default function PdfReader({ docId, anchors, focus, onPageChange }: Props
     const anchor = {
       x: Math.min(Math.max(rect.left - stageRect.left + rect.width / 2, 140), stageRect.width - 140),
       y: rect.bottom - stageRect.top + 8,
+      // 选区靠近页面底部时气泡会超出可视区，改为向上弹出
+      flip: rect.bottom - stageRect.top + 210 > stageRect.height,
     };
 
-    setSelection({ text, x: anchor.x, y: anchor.y, loading: true, target: "", mode: "" });
+    // 一页 PDF 比视口高时，选区可能在可视区之外，先把滚动位置带过去
+    const scroller = containerRef.current;
+    if (scroller) {
+      const viewTop = scroller.scrollTop;
+      const viewBottom = viewTop + scroller.clientHeight;
+      if (anchor.y < viewTop + 20 || anchor.y > viewBottom - 210) {
+        scroller.scrollTop = Math.max(0, anchor.y - scroller.clientHeight * 0.55);
+      }
+    }
+
+    setSelection({
+      text,
+      x: anchor.x,
+      y: anchor.y,
+      flip: anchor.flip,
+      loading: true,
+      target: "",
+      mode: "",
+    });
     translateSelection(text)
       .then((res) =>
         setSelection((prev) =>
@@ -252,7 +273,9 @@ export default function PdfReader({ docId, anchors, focus, onPageChange }: Props
 
             {selection ? (
               <div
-                className="absolute z-30 w-[300px] -translate-x-1/2 border border-haze bg-mist shadow-[0_6px_24px_rgba(0,0,0,0.22)]"
+                className={`absolute z-30 w-[300px] -translate-x-1/2 border border-haze bg-mist shadow-[0_6px_24px_rgba(0,0,0,0.22)] ${
+                  selection.flip ? "-translate-y-full" : ""
+                }`}
                 style={{ left: selection.x, top: selection.y }}
                 onMouseDown={(e) => e.preventDefault()}
               >
