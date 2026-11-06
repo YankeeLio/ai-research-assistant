@@ -51,9 +51,14 @@ class Evidence:
     title: str = ""
 
 
+def _index_dir(doc_id: str) -> Path:
+    from ..core.paths import doc_dir
+
+    return doc_dir(doc_id) / "index"
+
+
 def load_index(doc_id: str) -> DocumentIndex | None:
-    settings = get_settings()
-    directory = settings.docs_dir / doc_id / "index"
+    directory = _index_dir(doc_id)
     try:
         index = DocumentIndex.load(doc_id, directory)
     except (TypeError, KeyError, ValueError) as exc:
@@ -73,10 +78,9 @@ def load_index(doc_id: str) -> DocumentIndex | None:
 
 
 def build_index(doc_id: str, chunks: list[Chunk]) -> DocumentIndex:
-    settings = get_settings()
     embedder = get_embedder()
     index = DocumentIndex.build(doc_id, chunks, embedder)
-    directory = settings.docs_dir / doc_id / "index"
+    directory = _index_dir(doc_id)
     index.save(directory)
     (directory / "meta.json").write_text(
         json.dumps({"embedder": embedder.name, "dim": embedder.dim, "chunks": len(chunks)}),

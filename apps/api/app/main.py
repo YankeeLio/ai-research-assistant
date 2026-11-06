@@ -7,8 +7,9 @@ import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .core.config import get_settings
 from .routers import arxiv, documents, graph, qa, translation, writing
@@ -96,6 +97,18 @@ app.include_router(translation.router, prefix="/api")
 app.include_router(graph.router, prefix="/api")
 app.include_router(arxiv.router, prefix="/api")
 app.include_router(writing.router, prefix="/api")
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_request: Request, exc: Exception) -> JSONResponse:
+    """兜底异常处理：未捕获异常也返回 JSON，前端才能显示可读错误。
+
+    默认行为是纯文本 "Internal Server Error"，前端 `res.json()` 会再抛一次，
+    用户只看到一个空白面板；这里至少把异常类型与首行信息带出去。
+    """
+    logger.exception("未处理异常: %s", exc)
+    detail = f"{type(exc).__name__}: {exc}"[:300]
+    return JSONResponse(status_code=500, content={"detail": detail})
 
 
 @app.get("/api/health", tags=["system"])

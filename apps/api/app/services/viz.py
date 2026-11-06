@@ -300,4 +300,6 @@ def build_caption(title: str, kind: str, table: CsvTable, summary: list[str]) ->
 
 
 def figure_path(figure_id: str) -> Path:
-    return get_settings().data_dir / "figures" / f"{figure_id}.png"
+    from ..core.paths import figure_path as safe_figure_path
+
+    return safe_figure_path(figure_id)

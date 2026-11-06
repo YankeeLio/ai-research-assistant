@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse
 
 from ..core import db
 from ..core.config import get_settings
+from ..core.paths import doc_dir as safe_doc_dir
 from ..models.schema import DocumentSummary, ParsedDocument
 from ..services import dedupe, version_diff
 from ..services.ingest import store_document
@@ -26,7 +27,7 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 
 def _doc_dir(doc_id: str) -> Path:
-    return get_settings().docs_dir / doc_id
+    return safe_doc_dir(doc_id)
 
 
 def _version_hint(file_name: str) -> str:

@@ -15,6 +15,7 @@ from fastapi import HTTPException
 
 from ..core import db
 from ..core.config import get_settings
+from ..core.paths import doc_dir as safe_doc_dir
 from ..models.schema import DocumentSummary, ParsedDocument
 from . import dedupe
 from .parser import PdfParser
@@ -30,7 +31,8 @@ def version_hint(file_name: str) -> str:
 
 
 def doc_dir(doc_id: str) -> Path:
-    return get_settings().docs_dir / doc_id
+    # 统一走 core.paths 的白名单校验，避免 doc_id 被拼成越权路径
+    return safe_doc_dir(doc_id)
 
 
 def pool(exclude: str | None = None) -> list[dedupe.Fingerprint]:
