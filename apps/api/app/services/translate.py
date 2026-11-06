@@ -170,6 +170,65 @@ def _cache_path(doc_id: str) -> Path:
 
 PROSE_RE = re.compile(r"[A-Za-z]{3,}\s+[A-Za-z]{3,}\s+[A-Za-z]{3,}")
 
+# 划词翻译的短文本缓存：同一句反复划到的概率很高，避免重复调模型
+_SELECTION_CACHE: dict[str, str] = {}
+_SELECTION_CACHE_MAX = 500
+
+
+def translate_selection(text: str) -> dict:
+    """划词翻译：单句/短段，走 LLM 优先、本地 MT 兜底。
+
+    与整篇翻译的区别是**要求快**——用户划完词就在等，所以不排队、不批量，
+    并且对同一句话做进程内缓存。
+    """
+    cleaned = " ".join(text.split())
+    if not cleaned:
+        return {"source": "", "target": "", "mode": "none"}
+    if len(cleaned) > 2000:
+        cleaned = cleaned[:2000]
+
+    cached = _SELECTION_CACHE.get(cleaned)
+    if cached is not None:
+        return {"source": cleaned, "target": cached, "mode": "cache"}
+
+    settings = get_settings()
+    target = ""
+    mode = "none"
+
+    if settings.llm_api_key:
+        try:
+            from .llm import LLMClient
+
+            client = LLMClient()
+            target = client.complete_sync(
+                [
+                    {
+                        "role": "system",
+                        "content": "把用户给的英文学术片段翻译成简体中文。保留 [12] 这类引用编号、"
+                        "保留公式与模型名、只输出译文。",
+                    },
+                    {"role": "user", "content": cleaned},
+                ]
+            ).strip()
+            mode = "llm"
+        except Exception as exc:  # noqa: BLE001 - 失败则回落本地 MT
+            logger.warning("划词翻译失败，回落本地 MT: %s", exc)
+
+    if not target:
+        try:
+            translator = LocalMTTranslator(settings.translation_model)
+            target = translator.translate([cleaned])[0]
+            mode = "local-mt"
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("本地 MT 不可用: %s", exc)
+            target = cleaned
+            mode = "none"
+
+    if len(_SELECTION_CACHE) > _SELECTION_CACHE_MAX:
+        _SELECTION_CACHE.clear()
+    _SELECTION_CACHE[cleaned] = target
+    return {"source": cleaned, "target": target, "mode": mode}
+
 
 def _should_translate(text: str, kind: str) -> bool:
     """只翻译真正的正文段落。

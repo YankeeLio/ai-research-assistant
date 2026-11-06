@@ -3,12 +3,23 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from ..core import db
 from ..models.schema import ParsedDocument
 from ..services import translate
 
 router = APIRouter(tags=["translation"])
+
+
+class SelectionRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=3000)
+
+
+@router.post("/translate/selection")
+def translate_selection(req: SelectionRequest) -> dict:
+    """划词翻译：阅读器里选中一段英文后即时返回中文。"""
+    return translate.translate_selection(req.text)
 
 
 @router.post("/documents/{doc_id}/translate")

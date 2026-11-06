@@ -203,6 +203,18 @@ export async function getTranslation(docId: string): Promise<Translation | null>
   return json<Translation>(res);
 }
 
+export async function translateSelection(
+  text: string,
+): Promise<{ source: string; target: string; mode: string }> {
+  return json(
+    await fetch("/api/translate/selection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    }),
+  );
+}
+
 export async function translateDocument(docId: string, force = false): Promise<Translation> {
   await json<unknown>(
     await fetch(`/api/documents/${docId}/translate?force=${force}`, { method: "POST" }),

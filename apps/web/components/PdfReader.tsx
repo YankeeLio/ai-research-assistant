@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { translateSelection } from "@/lib/api";
 import type { CiteAnchor } from "@/lib/api";
 
 type Focus = { page: number; bbox: number[] } | null;
@@ -13,6 +14,15 @@ type Props = {
   onPageChange?: (page: number) => void;
 };
 
+type Selection = {
+  text: string;
+  x: number;
+  y: number;
+  loading: boolean;
+  target: string;
+  mode: string;
+} | null;
+
 /**
  * PDF 阅读器：Canvas 渲染 + 解析坐标叠加。
  *
@@ -22,7 +32,11 @@ type Props = {
 export default function PdfReader({ docId, anchors, focus, onPageChange }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const textLayerRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const pdfRef = useRef<import("pdfjs-dist").PDFDocumentProxy | null>(null);
+
+  const [selection, setSelection] = useState<Selection>(null);
 
   const [numPages, setNumPages] = useState(0);
   const [page, setPage] = useState(1);
@@ -92,6 +106,31 @@ export default function PdfReader({ docId, anchors, focus, onPageChange }: Props
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, viewport.width, viewport.height);
       await pdfPage.render({ canvasContext: ctx, viewport }).promise;
+
+      // 文本层：让 PDF 可以像网页一样划词选中（翻译、复制都依赖它）
+      const layer = textLayerRef.current;
+      if (layer && !cancelled) {
+        layer.innerHTML = "";
+        layer.style.width = `${Math.floor(viewport.width)}px`;
+        layer.style.height = `${Math.floor(viewport.height)}px`;
+        // pdf.js 4 用 calc(var(--scale-factor) * Npx) 定位文字，必须显式告知缩放比
+        layer.style.setProperty("--scale-factor", String(scale));
+        try {
+          const pdfjs = await import("pdfjs-dist");
+          const TextLayerCtor = (pdfjs as unknown as { TextLayer: new (opts: unknown) => { render: () => Promise<void> } })
+            .TextLayer;
+          const textLayer = new TextLayerCtor({
+            textContentSource: await pdfPage.getTextContent(),
+            container: layer,
+            viewport,
+          });
+          await textLayer.render();
+        } catch (e) {
+          // 文本层失败不影响图片阅读，只是不能划词
+          console.warn("text layer failed", e);
+        }
+      }
+
       if (!cancelled) {
         setBox({ w: viewport.width, h: viewport.height });
         setBaseWidth(base.width);
@@ -122,6 +161,37 @@ export default function PdfReader({ docId, anchors, focus, onPageChange }: Props
   const pageAnchors = anchors.filter((a) => a.page === page - 1);
   const ratio = baseWidth > 0 ? box.w / baseWidth : 1;
 
+  const handleMouseUp = useCallback(() => {
+    const sel = window.getSelection();
+    const layer = textLayerRef.current;
+    const stage = stageRef.current;
+    if (!sel || sel.isCollapsed || !layer || !stage || !sel.anchorNode) return;
+    if (!layer.contains(sel.anchorNode)) return;
+
+    const text = sel.toString().trim();
+    if (text.length < 2) return;
+
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    const anchor = {
+      x: Math.min(Math.max(rect.left - stageRect.left + rect.width / 2, 140), stageRect.width - 140),
+      y: rect.bottom - stageRect.top + 8,
+    };
+
+    setSelection({ text, x: anchor.x, y: anchor.y, loading: true, target: "", mode: "" });
+    translateSelection(text)
+      .then((res) =>
+        setSelection((prev) =>
+          prev && prev.text === text
+            ? { ...prev, loading: false, target: res.target, mode: res.mode }
+            : prev,
+        ),
+      )
+      .catch(() =>
+        setSelection((prev) => (prev && prev.text === text ? { ...prev, loading: false, target: "翻译失败", mode: "error" } : prev)),
+      );
+  }, []);
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b border-haze bg-mist px-6 py-2 font-mono text-[11px] text-ink/60">
@@ -142,8 +212,14 @@ export default function PdfReader({ docId, anchors, focus, onPageChange }: Props
         {error ? (
           <p className="p-6 text-[13px] text-mist">PDF 加载失败：{error}</p>
         ) : (
-          <div className="relative mx-auto" style={{ width: box.w || undefined }}>
+          <div ref={stageRef} className="relative mx-auto" style={{ width: box.w || undefined }}>
             <canvas ref={canvasRef} className="block bg-white shadow-[0_2px_18px_rgba(0,0,0,0.35)]" />
+            <div
+              ref={textLayerRef}
+              className="textLayer"
+              onMouseUp={handleMouseUp}
+              onMouseDown={() => setSelection(null)}
+            />
             {pageAnchors.map((a, i) => (
               <span
                 key={`${a.ref_index}-${i}`}
@@ -171,6 +247,37 @@ export default function PdfReader({ docId, anchors, focus, onPageChange }: Props
             {loading ? (
               <div className="absolute inset-0 flex items-center justify-center bg-white/70 font-mono text-[11px] text-ink/50">
                 渲染中…
+              </div>
+            ) : null}
+
+            {selection ? (
+              <div
+                className="absolute z-30 w-[300px] -translate-x-1/2 border border-haze bg-mist shadow-[0_6px_24px_rgba(0,0,0,0.22)]"
+                style={{ left: selection.x, top: selection.y }}
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                <div className="flex items-center gap-2 border-b border-haze px-2.5 py-1.5">
+                  <span className="font-mono text-[9.5px] text-ink/40">划词翻译</span>
+                  <span className="ml-auto font-mono text-[9px] text-ink/30">
+                    {selection.mode || "…"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelection(null)}
+                    className="px-1 text-[11px] text-ink/40 hover:text-ink"
+                    aria-label="关闭"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="max-h-[180px] overflow-y-auto px-2.5 py-2">
+                  <p className="mb-1.5 line-clamp-2 text-[10.5px] leading-relaxed text-ink/45">
+                    {selection.text}
+                  </p>
+                  <p className="text-[12px] leading-[1.75] text-ink">
+                    {selection.loading ? "翻译中…" : selection.target}
+                  </p>
+                </div>
               </div>
             ) : null}
           </div>
