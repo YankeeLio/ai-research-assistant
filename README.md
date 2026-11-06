@@ -107,7 +107,7 @@ TRANSLATION_BACKEND=auto      # auto | llm | local
 | 扫描件 OCR | 15 页纯图片解析出 7 章、36 条参考文献 | 同上 |
 | 检索命中 @3 | 6/6（含中文提问） | `scripts/eval_retrieval.py` |
 | 版本去重 | v1 vs v7：`same_work`，相似度 0.905 | `scripts/dedupe_test.py` |
-| 引用图谱 | 34 节点 / 68 边 / 16 条库内互引 | `scripts/graph_probe.py` |
+| 引用图谱 | 34 节点 / 68 边 / 26 条库内互引 | `scripts/graph_probe.py` |
 | 端到端自查 | **13/13 通过** | `scripts/reviewer_walkthrough.py` |
 
 ## 测试

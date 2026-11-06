@@ -104,14 +104,56 @@ export default function CitationGraphView({ onOpenDoc }: { onOpenDoc: (docId: st
           },
           { selector: "node:selected", style: { "border-width": 3, "border-color": "#191813" } },
         ],
-        layout: {
-          name: "cose",
-          animate: false,
-          padding: 40,
-          nodeRepulsion: () => 9000,
-          idealEdgeLength: () => 90,
-        },
+        // 力导向布局在"10 个库内 + 24 个外部引用"这种结构上会把核心挤成一团、标签互相压住。
+        // 改用同心圆：库内文献在内圈（按 PageRank 排序），库外被引文献在外圈，
+        // 角度尽量对齐到它被引用的那篇，视觉上自然会形成"核心 → 放射"的结构。
+        layout: { name: "preset", fit: true, padding: 40 },
       });
+      const core = cy;
+
+      // 容器刚挂载时 flex 布局可能还没结算，getBoundingClientRect 会给出 0，
+      // 于是所有节点被摆到原点、画面一片空白。这里用 clientWidth 并兜底一次延迟。
+      const mount = containerRef.current!;
+      const w = mount.clientWidth || 900;
+      const h = mount.clientHeight || 700;
+      const cx = w / 2;
+      const cy0 = h / 2;
+      const innerR = Math.min(w, h) * 0.20;
+      const outerR = Math.min(w, h) * 0.43;
+
+      const libraryNodes = payload.nodes
+        .filter((n) => n.in_library)
+        .sort((a, b) => b.pagerank - a.pagerank);
+      const angleOf = new Map<string, number>();
+      libraryNodes.forEach((n, i) => {
+        const angle = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(1, libraryNodes.length);
+        angleOf.set(n.id, angle);
+        core.getElementById(n.id).position({
+          x: cx + innerR * Math.cos(angle),
+          y: cy0 + innerR * Math.sin(angle),
+        });
+      });
+
+      const externals = payload.nodes
+        .filter((n) => !n.in_library)
+        .map((n) => {
+          const sources = payload.edges.filter((e) => e.target === n.id && angleOf.has(e.source));
+          const base = sources.length ? angleOf.get(sources[0].source)! : 0;
+          return { node: n, base };
+        })
+        .sort((a, b) => a.base - b.base);
+
+      externals.forEach((item, i) => {
+        const angle = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(1, externals.length);
+        core.getElementById(item.node.id).position({
+          x: cx + outerR * Math.cos(angle),
+          y: cy0 + outerR * Math.sin(angle),
+        });
+      });
+
+      // preset 布局在创建时就执行过（那时还没有坐标），摆好位置后必须再 fit 一次
+      core.resize();
+      core.fit(undefined, 60);
 
       cy.on("tap", "node", (evt) => {
         const id = evt.target.id() as string;
