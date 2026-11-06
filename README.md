@@ -107,7 +107,18 @@ TRANSLATION_BACKEND=auto      # auto | llm | local
 | 扫描件 OCR | 15 页纯图片解析出 7 章、36 条参考文献 | 同上 |
 | 检索命中 @3 | 6/6（含中文提问） | `scripts/eval_retrieval.py` |
 | 版本去重 | v1 vs v7：`same_work`，相似度 0.905 | `scripts/dedupe_test.py` |
-| 引用图谱 | 33 节点 / 52 边 / 16 条库内互引 | `scripts/graph_probe.py` |
+| 引用图谱 | 34 节点 / 68 边 / 16 条库内互引 | `scripts/graph_probe.py` |
+| 端到端自查 | **13/13 通过** | `scripts/reviewer_walkthrough.py` |
+
+## 测试
+
+```bash
+cd apps/api
+.venv\Scripts\python -m pytest ../../tests -q     # 8 项回归测试，约 40 秒
+```
+
+覆盖的是"错了不会抛异常、只会让结果悄悄变差"的地方：空格被当噪声过滤导致的整句粘连、
+锚点没有收敛到字符级、越界引用未被剔除、量级差过大时图表未拆子图。
 
 ---
 

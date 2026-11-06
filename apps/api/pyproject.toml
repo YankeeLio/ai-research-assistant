@@ -19,6 +19,7 @@ rag = ["chromadb>=0.5", "rank-bm25>=0.2.2", "sentence-transformers>=3.0"]
 graph = ["networkx>=3.3"]
 viz = ["matplotlib>=3.9", "pandas>=2.2"]
 ocr = ["paddleocr>=2.7", "paddlepaddle>=2.6", "pdf2image>=1.17"]
+dev = ["pytest>=8.0", "ruff>=0.5"]
 
 [build-system]
 requires = ["setuptools>=68"]

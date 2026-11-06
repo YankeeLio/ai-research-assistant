@@ -68,11 +68,24 @@ CORS_ORIGINS=http://<服务器公网IP>
 docker compose build      # 首次 15-25 分钟（torch + 依赖）
 docker compose up -d
 docker compose ps
-docker compose logs -f api | head -50     # 看到 "向量模型就绪" 即可
+
+# 等到 ready=true 再对外宣布地址，否则评审第一次提问会撞上冷启动
+python scripts/wait_ready.py http://<服务器公网IP>
 ```
 
 首次启动会从 hf-mirror 下载 BGE-M3（约 2.2 GB），视带宽 3-15 分钟。
 下载完成后建议把 `.env` 里的 `HF_OFFLINE` 改为 `true` 并重启，避免每次启动探测 Hub 超时。
+
+启动后服务会在后台依次：加载向量模型（15–30 s，2C4G 上更久）→ 补齐所有文档的索引。
+`/api/health` 会返回进度：
+
+```json
+{"status":"ok","ready":true,
+ "warmup":{"embedder":true,"indexed":9,"documents":10,"warming":false}}
+```
+
+`indexed` 比 `documents` 少是正常的——超过 200 页的文档（如 541 页教材）只参与阅读演示，
+不建向量索引。
 
 ## 4. 灌入演示数据
 
