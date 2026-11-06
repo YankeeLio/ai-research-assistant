@@ -84,8 +84,12 @@ async function main() {
   };
   // 每个场景有一个"目标时长"，动作做完后补足剩余时间，
   // 让画面节奏与 docs/VIDEO_SCRIPT.md 的旁白时长对齐，配音时不用来回拉时间轴
+  const sceneTimings = [];
+  let recordStart = 0;
   const scene = async (name, target, fn) => {
+    if (!recordStart) recordStart = Date.now() / 1000;
     const t0 = Date.now();
+    const startOffset = t0 / 1000 - recordStart;
     try {
       await fn();
     } catch (err) {
@@ -94,7 +98,11 @@ async function main() {
     }
     const spent = (Date.now() - t0) / 1000;
     if (spent < target) await wait((target - spent) * 1000);
-    console.log(`  ${name} 完成 ${spent.toFixed(1)}s → 补足到 ${target}s`);
+    const endOffset = Date.now() / 1000 - recordStart;
+    sceneTimings.push({ name, start: startOffset, end: endOffset });
+    console.log(
+      `  ${name} 完成 ${spent.toFixed(1)}s → 补足到 ${target}s（${startOffset.toFixed(1)}–${endOffset.toFixed(1)}s）`,
+    );
   };
 
   // 镜 1：文献台全景
@@ -233,6 +241,7 @@ async function main() {
   });
 
   await client.send("Page.stopScreencast").catch(() => {});
+  const recordEnd = Date.now() / 1000;
   await browser.close();
   console.log(`抓到 ${frames.length} 帧`);
   if (frames.length < 20) throw new Error("帧数太少，录制可能失败");
@@ -241,7 +250,8 @@ async function main() {
   for (let i = 0; i < frames.length; i += 1) {
     const file = path.join(frameDir, `f${String(i).padStart(5, "0")}.jpg`);
     await writeFile(file, Buffer.from(frames[i].data, "base64"));
-    const next = frames[i + 1]?.ts ?? frames[i].ts + 0.1;
+    // 末帧要一直显示到录制结束，否则最后一段停留（约 20-30 秒）会整段丢失
+    const next = frames[i + 1]?.ts ?? recordEnd;
     // 静止画面靠持有上一帧补齐，所以上限要覆盖整段停留（此前设 6 秒把 375 秒压成了 94 秒）
     const dur = Math.max(0.02, Math.min(60.0, next - frames[i].ts));
     lines.push(`file '${file.replace(/\\/g, "/")}'`);
@@ -251,6 +261,26 @@ async function main() {
   lines.push(`file '${lastFile.replace(/\\/g, "/")}'`);
   const listFile = path.join(frameDir, "list.txt");
   await writeFile(listFile, lines.join("\n"), "utf8");
+
+  // 场景边界用录制墙钟记录，字幕按它切分才能和画面严格对齐。
+  // offset 是"第一帧到达时刻 - 第一个场景开始时刻"：截屏流在页面加载阶段就开始出帧，
+  // 这段画面会被编进正片，不补偿的话字幕会整体提前好几秒。
+  const firstFrameTs = frames.length ? frames[0].ts : recordStart;
+  const offset = Math.max(0, firstFrameTs - recordStart);
+  await writeFile(
+    path.join(frameDir, "timings.json"),
+    JSON.stringify(
+      {
+        total: frames.length ? frames[frames.length - 1].ts - firstFrameTs : 0,
+        offset,
+        scenes: sceneTimings,
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+  console.log(`场景边界已写入 timings.json（首帧偏移 ${offset.toFixed(1)}s）`);
 
   if (NO_ENCODE) {
     console.log("已抓帧，跳过编码");
